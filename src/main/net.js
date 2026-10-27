@@ -1,6 +1,8 @@
 // Download + unzip helpers. Uses Electron's network stack so system proxy
 // settings are respected on any computer.
-const fs = require('fs');
+// original-fs: Electron's own fs treats any "*.asar" path as an archive, so it
+// can't write the app.asar inside a Pitaya update zip ("Invalid package").
+const fs = require('original-fs');
 const path = require('path');
 const { net } = require('electron');
 const yauzl = require('yauzl');

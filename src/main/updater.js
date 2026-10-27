@@ -4,7 +4,9 @@
 // start the NEW Pitaya.exe with --pitaya-apply-update. That process waits for
 // the old one to exit, copies its own files over the app folder, relaunches
 // the app and exits. No scripts, so unusual paths (e.g. "Yıldıray") are safe.
-const fs = require('fs');
+// original-fs: the update folder holds another app.asar, which Electron's fs
+// would try to open as an archive instead of copying or deleting it.
+const fs = require('original-fs');
 const path = require('path');
 const { spawn } = require('child_process');
 const { app } = require('electron');
@@ -74,9 +76,16 @@ function findExeDir(root) {
 }
 
 let prepared = null;
+let preparing = null; // a download in progress (automatic and manual checks can overlap)
 
 // Downloads and extracts a release. Returns the folder with the new exe.
-async function prepare(rel) {
+function prepare(rel) {
+  if (prepared && prepared.version === rel.version) return Promise.resolve(prepared);
+  if (!preparing) preparing = doPrepare(rel).finally(() => (preparing = null));
+  return preparing;
+}
+
+async function doPrepare(rel) {
   set({ status: 'downloading', version: rel.version, progress: 0 });
   const zip = path.join(paths.updateDir, `Pitaya-${rel.version}.zip`);
   const out = path.join(paths.updateDir, 'new');
