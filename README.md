@@ -5,10 +5,15 @@
 Arka planda çalışan, tek kısayolla video indiren küçük bir Windows uygulaması.
 
 1. Bir video linkini kopyala (YouTube, X, Instagram, TikTok, Reddit… yt-dlp'nin desteklediği 1000+ site).
-2. Kısayola bas (varsayılan **Ctrl + Alt + P**).
+2. Kısayola bas (varsayılan **Ctrl + Alt + P**) — ya da linki kopyalarken **Ctrl + C**'ye art arda iki kez bas.
 3. Seç: **MP3 / MP4** → (MP4 ise) **kalite** → **klasör**. Rakam tuşlarıyla tek tuşta seçilebilir.
 
-İndirme sağ alt köşede görünür; bitince tıklayıp dosyayı açabilirsin.
+İndirme sağ alt köşede görünür; bitince Windows bildirimi gelir, tıklayıp dosyayı açabilirsin.
+
+- MP3'lere videonun küçük resmi kapak olarak eklenir.
+- Daha önce indirdiğin bir videoyu tekrar açarsan popup bunu söyler (biçim, tarih, klasör).
+- Oynatma listelerinde ilerleme panelinde kaçıncı videoda olduğun görünür (ör. 3/25).
+- Çift Ctrl+C ve bildirimler Ayarlar'dan kapatılabilir.
 
 ## Kurulum
 
@@ -49,6 +54,8 @@ GitHub Actions uygulamayı derler ve zip'i Release olarak yayınlar. Kullanıcı
 |---|---|
 | `src/main/main.js` | Tepsi simgesi, global kısayol, pencereler |
 | `src/main/ytdlp.js` | Kaliteleri okuma, indirme ve ilerleme |
+| `src/main/doublecopy.js` | Çift Ctrl+C'yi algılama (Windows pano sayacı, koffi ile) |
+| `src/main/history.js` | İndirme geçmişi ("daha önce indirildi" uyarısı için) |
 | `src/main/components.js` | yt-dlp / ffmpeg / Deno'yu indirip güncel tutma |
 | `src/main/updater.js` | GitHub Releases'tan kendini güncelleme |
 | `src/renderer/` | Popup, ilerleme paneli ve ayarlar arayüzü |

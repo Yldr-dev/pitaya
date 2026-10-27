@@ -29,6 +29,13 @@
         <button id="hotkeyBtn" class="btn">Değiştir</button>
       </div>
       <p id="hotkeyHint" class="hint muted"></p>
+      <label class="toggle sep">
+        <span>
+          <span class="label">İki kez Ctrl+C ile aç</span>
+          <span id="doubleCopyHint" class="muted small">Bir linki art arda iki kez kopyalayınca (Ctrl+C, Ctrl+C) kısayola basmadan açılır.</span>
+        </span>
+        <input type="checkbox" id="doubleCopy">
+      </label>
     </section>
 
     <section class="card">
@@ -52,6 +59,13 @@
           <span class="muted small">Yeni sürüm çıkınca kendini günceller</span>
         </span>
         <input type="checkbox" id="autoUpdate">
+      </label>
+      <label class="toggle">
+        <span>
+          <span class="label">İndirme bitince bildirim göster</span>
+          <span class="muted small">Bildirime tıklayınca dosya açılır</span>
+        </span>
+        <input type="checkbox" id="notify">
       </label>
       <label class="toggle">
         <span>

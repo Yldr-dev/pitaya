@@ -5,6 +5,7 @@ let jobs = [];
 let comp = { state: 'ready' };
 let update = { status: 'idle' };
 let hotkey = '';
+let doubleCopy = false;
 
 function el(tag, cls, text) {
   const e = document.createElement(tag);
@@ -71,7 +72,10 @@ function card({ badge, name, progress, status, right, cls, buttons = [], action,
 
 function jobCard(j) {
   const badge = j.format === 'mp3' ? 'MP3' : j.quality && j.quality !== 'best' ? `${j.quality}p` : 'MP4';
+  const list = j.count > 1;
   const base = { badge, name: j.title, progress: j.progress };
+  // Playlists: "3/25 · " in front of the status line.
+  const pos = list && j.index ? `${j.index}/${j.count} · ` : '';
   const cancel = button('✕', 'İndirmeyi iptal et', 'cancel', j.id);
   switch (j.state) {
     case 'starting':
@@ -79,23 +83,29 @@ function jobCard(j) {
     case 'downloading':
       return card({
         ...base,
-        status: `%${Math.floor(j.progress * 100)}  ${fmtSpeed(j.speed)}`,
-        right: fmtEta(j.eta),
+        status: `${pos}%${Math.floor(j.progress * 100)}  ${fmtSpeed(j.speed)}`,
+        right: list ? '' : fmtEta(j.eta),
         buttons: [cancel],
       });
     case 'processing':
       return card({
         ...base,
-        cls: 'indeterminate',
-        status: j.format === 'mp3' ? 'MP3’e dönüştürülüyor…' : 'Birleştiriliyor…',
+        // A playlist keeps its real bar; only the current video is being processed.
+        cls: list ? '' : 'indeterminate',
+        status: pos + (j.format === 'mp3' ? 'MP3’e dönüştürülüyor…' : 'Birleştiriliyor…'),
         buttons: [cancel],
       });
     case 'done':
       return card({
         ...base,
+        name: list ? j.listTitle || j.title : j.title,
         cls: 'done',
         progress: 1,
-        status: j.format === 'mp3' ? 'Tamamlandı · dinlemek için tıkla' : 'Tamamlandı · izlemek için tıkla',
+        status: list
+          ? `Tamamlandı · ${j.count} video · klasörü açmak için tıkla`
+          : j.format === 'mp3'
+            ? 'Tamamlandı · dinlemek için tıkla'
+            : 'Tamamlandı · izlemek için tıkla',
         buttons: [button('📂', 'Klasörde göster', 'open', j.id), button('✕', 'Listeden kaldır', 'dismiss', j.id)],
         action: 'play',
         id: j.id,
@@ -136,6 +146,10 @@ function render() {
       hint.append(el('kbd', null, k === 'Super' ? 'Win' : k));
     });
     hint.append(' tuşlarına bas.');
+    if (doubleCopy) {
+      hint.append(el('br'), 'Ya da linki kopyalarken ');
+      hint.append(el('kbd', null, 'Ctrl'), '+', el('kbd', null, 'C'), ' tuşlarına iki kez bas.');
+    }
     empty.append(hint);
     app.append(empty);
   }
@@ -186,6 +200,7 @@ api.on('progress:update', (u) => {
 
 api.on('progress:meta', (m) => {
   hotkey = m.hotkey || hotkey;
+  if (typeof m.doubleCopy === 'boolean') doubleCopy = m.doubleCopy;
   render();
 });
 
@@ -194,5 +209,6 @@ api.invoke('progress:state').then((s) => {
   comp = s.components;
   update = s.update;
   hotkey = s.hotkey || '';
+  doubleCopy = !!s.doubleCopy;
   render();
 });

@@ -158,7 +158,7 @@ $('addFolder').addEventListener('click', async () => {
 
 // ---------- toggles ----------
 
-for (const id of ['openAtLogin', 'autoUpdate']) {
+for (const id of ['openAtLogin', 'autoUpdate', 'doubleCopy', 'notify']) {
   $(id).addEventListener('change', async (e) => {
     cfg = await api.invoke('settings:save', { [id]: e.target.checked });
   });
@@ -241,6 +241,12 @@ api.on('settings:update', renderUpdate);
   renderFolders();
   $('openAtLogin').checked = !!cfg.openAtLogin;
   $('autoUpdate').checked = !!cfg.autoUpdate;
+  $('notify').checked = !!cfg.notify;
+  $('doubleCopy').checked = !!cfg.doubleCopy && s.doubleCopyAvailable;
+  if (!s.doubleCopyAvailable) {
+    $('doubleCopy').disabled = true;
+    $('doubleCopyHint').textContent = 'Bu bilgisayarda kullanılamıyor (ayrıntı günlük dosyasında).';
+  }
   $('cookiesBrowser').value = cfg.cookiesBrowser || '';
   $('version').textContent = `Pitaya ${s.version}`;
   renderComponents(s.components);

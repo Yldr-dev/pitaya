@@ -38,6 +38,7 @@ const paths = {
   updateDir: path.join(dataDir, 'update'),
   logFile: path.join(dataDir, 'pitaya.log'),
   configFile: path.join(dataDir, 'config.json'),
+  historyFile: path.join(dataDir, 'history.json'),
   electronData: path.join(dataDir, 'electron'),
   isPortable: dataDir === portableData,
 };

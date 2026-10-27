@@ -6,6 +6,7 @@ const { EventEmitter } = require('events');
 const { bin, toolEnv } = require('./components');
 const paths = require('./paths');
 const config = require('./config');
+const history = require('./history');
 const log = require('./log');
 
 // The browser session (cookies) is only used after a site asked for a login.
@@ -64,10 +65,17 @@ function thumbOf(info) {
   return (mid || list[list.length - 1] || {}).url || null;
 }
 
+// Same video under different links (youtu.be/x, watch?v=x&t=10) gets one key.
+function keyOf(info) {
+  const ex = info.extractor_key || info.ie_key || info.extractor;
+  return ex && info.id ? `${ex}:${info.id}` : null;
+}
+
 function summarize(info) {
   const thumbnail = thumbOf(info);
   if (info._type === 'playlist') {
     return {
+      key: keyOf(info),
       thumbnail,
       uploader: info.uploader || info.channel || '',
       title: info.title || 'Oynatma listesi',
@@ -101,6 +109,7 @@ function summarize(info) {
     });
 
   return {
+    key: keyOf(info),
     thumbnail,
     title: info.title || '',
     uploader: info.uploader || info.channel || '',
@@ -236,22 +245,30 @@ const FILE = '[pitaya-file]';
 
 function formatArgs(format, quality) {
   if (format === 'mp3') {
-    return ['-f', 'ba/b', '-x', '--audio-format', 'mp3', '--audio-quality', '0', '--embed-metadata'];
+    // Cover art: the video thumbnail, converted to JPG so every player shows it.
+    return [
+      '-f', 'ba/b', '-x', '--audio-format', 'mp3', '--audio-quality', '0', '--embed-metadata',
+      '--embed-thumbnail', '--convert-thumbnails', 'jpg',
+    ];
   }
   const sort = quality === 'best' ? 'res,vcodec:h264,acodec:aac' : `res:${quality},vcodec:h264,acodec:aac`;
   return ['-f', 'bv*+ba/b', '-S', sort, '--merge-output-format', 'mp4', '--remux-video', 'mp4', '--embed-metadata'];
 }
 
 // infoJson: file from fetchInfo. Using it skips a second ~5 s extraction.
-function start({ url, format, quality, folder, title, infoJson, useCookies }) {
+function start({ url, format, quality, folder, title, key, infoJson, useCookies }) {
   const id = nextId++;
   const job = {
     id,
     url,
+    key: key || null,
     format,
     quality,
     folder,
     title: title || url,
+    listTitle: null, // playlist name, when the link is a playlist
+    index: 0, // current video in a playlist (1-based)
+    count: 0, // videos in the playlist; 0 for a single video
     state: 'starting', // starting | downloading | processing | done | error | canceled
     progress: 0,
     speed: null,
@@ -281,7 +298,8 @@ function start({ url, format, quality, folder, title, infoJson, useCookies }) {
     `download:${DL}%(progress.downloaded_bytes)s|%(progress.total_bytes)s|%(progress.total_bytes_estimate)s|%(progress.speed)s|%(progress.eta)s`,
     '--progress-template',
     `postprocess:${PP}%(progress.postprocessor)s`,
-    '--print', `before_dl:${FMT}%(format_id)s|%(title)s`,
+    // Title goes last: it may contain "|".
+    '--print', `before_dl:${FMT}%(format_id)s|%(playlist_index)s|%(n_entries,playlist_count)s|%(extractor_key)s:%(id)s|%(title)s`,
     '--print', `after_move:${FILE}%(filepath)s`,
   ];
 
@@ -304,6 +322,8 @@ function start({ url, format, quality, folder, title, infoJson, useCookies }) {
   let lastDone = 0;
 
   const num = (s) => (s && s !== 'NA' && s !== 'None' ? Number(s) : null);
+  // In a playlist the bar shows the whole list, not just the current video.
+  const overall = (p) => (job.count > 1 ? (Math.max(job.index, 1) - 1 + p) / job.count : p);
 
   const onLine = (line) => {
     if (line.startsWith(DL)) {
@@ -315,24 +335,30 @@ function start({ url, format, quality, folder, title, infoJson, useCookies }) {
       lastDone = d;
       const frac = t ? Math.min(d / t, 1) : 0;
       job.state = 'downloading';
-      job.progress = (job.part + frac) / job.parts;
+      job.progress = overall((job.part + frac) / job.parts);
       job.speed = num(speed);
       job.eta = num(eta);
     } else if (line.startsWith(PP)) {
       job.state = 'processing';
-      job.progress = 1;
+      job.progress = overall(1);
       job.speed = null;
       job.eta = null;
     } else if (line.startsWith(FMT)) {
-      const raw = line.slice(FMT.length);
-      const sep = raw.indexOf('|');
-      const fmt = raw.slice(0, sep);
-      job.title = raw.slice(sep + 1) || job.title;
+      const [fmt, index, count, key, ...rest] = line.slice(FMT.length).split('|');
+      const n = num(count) || 0;
+      if (n > 1) {
+        if (!job.listTitle) job.listTitle = job.title;
+        job.count = n;
+        job.index = num(index) || job.index + 1;
+      }
+      if (key && !/^(NA|None):|:(NA|None)$/.test(key)) job.key = key;
+      job.title = rest.join('|') || job.title;
       job.parts = fmt.split('+').length;
       job.part = 0;
       lastDone = 0;
     } else if (line.startsWith(FILE)) {
       job.file = line.slice(FILE.length).trim();
+      history.add({ url: job.count > 1 ? null : url, key: job.key, title: job.title, format, quality, file: job.file });
     } else {
       return;
     }
@@ -365,7 +391,7 @@ function start({ url, format, quality, folder, title, infoJson, useCookies }) {
       else if (!cookies && canUseCookies(stderr)) retry = [false, true]; // site wants a login
       if (retry) {
         log.warn('download failed, retrying', id, retry[1] ? 'with browser session' : 'from url', stderr.slice(-500));
-        Object.assign(job, { state: 'starting', progress: 0, speed: null, eta: null, part: 0 });
+        Object.assign(job, { state: 'starting', progress: 0, speed: null, eta: null, part: 0, index: 0 });
         emit();
         return run(...retry);
       }
@@ -379,6 +405,10 @@ function start({ url, format, quality, folder, title, infoJson, useCookies }) {
       job.state = 'done';
       job.progress = 1;
       log.info('download done', id, job.file);
+      // The playlist link itself, so copying it again shows "already downloaded".
+      if (job.count > 1 && job.file) {
+        history.add({ url, key: null, title: job.listTitle, format, quality, file: job.file, count: job.count });
+      }
     } else {
       job.state = 'error';
       job.error = cleanError(stderr) || `yt-dlp çıkış kodu ${code}`;
@@ -386,6 +416,7 @@ function start({ url, format, quality, folder, title, infoJson, useCookies }) {
     }
     job.child = null;
     emit();
+    events.emit('finished', publicJob(job));
   };
   child.on('error', (e) => {
     stderr += e.message;

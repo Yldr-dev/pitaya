@@ -28,6 +28,8 @@ function main() {
   const config = require('./config');
   const components = require('./components');
   const ytdlp = require('./ytdlp');
+  const history = require('./history');
+  const doubleCopy = require('./doublecopy');
 
   const ASSETS = path.join(__dirname, '..', '..', 'assets');
   const RENDERER = path.join(__dirname, '..', 'renderer');
@@ -149,7 +151,7 @@ function main() {
     task.promise.then(
       (r) => {
         Object.assign(entry, { result: r, task: null, at: Date.now() });
-        send(popupWin, 'popup:info', { url, info: r });
+        send(popupWin, 'popup:info', { url, info: r, dup: dupFor(url, r.key) });
       },
       (e) => {
         Object.assign(entry, { error: e.message, task: null });
@@ -158,6 +160,18 @@ function main() {
       }
     );
     return entry;
+  }
+
+  // Is this video downloading right now, or was it downloaded before?
+  function dupFor(url, key) {
+    const busy = ['starting', 'downloading', 'processing'];
+    const active = ytdlp.list().find((j) => busy.includes(j.state) && (j.url === url || (key && j.key === key)));
+    if (active) return { active: true };
+    const r = history.find(url, key);
+    if (!r) return null;
+    const dir = path.dirname(r.file);
+    const known = config.get().folders.find((f) => path.resolve(f.path) === path.resolve(dir));
+    return { format: r.format, quality: r.quality, at: r.at, count: r.count || 0, folder: known ? known.name : path.basename(dir) };
   }
 
   // Links from these sites start loading as soon as they are copied, so the
@@ -207,7 +221,27 @@ function main() {
     }
   }
 
-  async function showPopupForClipboard() {
+  // Copying a link twice quickly works like the hotkey. Plain text copied twice
+  // is common, so anything that isn't just a link is ignored.
+  async function onDoubleCopy() {
+    if (hotkeyBusy || popupWin.isVisible() || !components.isReady()) return;
+    const text = (await readClipboard()).trim();
+    if (!/^https?:\/\/\S+$/i.test(text) || !extractUrl(text)) return;
+    log.info('double copy');
+    hotkeyBusy = true;
+    try {
+      await showPopupForClipboard({ fromCopy: true });
+    } finally {
+      hotkeyBusy = false;
+    }
+  }
+
+  function applyDoubleCopy() {
+    if (config.get().doubleCopy) doubleCopy.start(() => onDoubleCopy().catch((e) => log.warn('double copy', e.message)));
+    else doubleCopy.stop();
+  }
+
+  async function showPopupForClipboard({ fromCopy = false } = {}) {
     const cfg = config.get();
     const url = extractUrl(await readClipboard());
     let payload;
@@ -231,12 +265,15 @@ function main() {
         lastFolder: cfg.lastFolder,
         info: entry.result,
         infoError: entry.error,
+        dup: dupFor(url, entry.result && entry.result.key),
       };
     }
-    log.info('hotkey', payload.mode, url ? new URL(url).hostname : '-');
+    log.info(fromCopy ? 'double copy' : 'hotkey', payload.mode, url ? new URL(url).hostname : '-');
     send(popupWin, 'popup:show', payload);
     centerOnCursorDisplay(popupWin, 420, popupWin.getBounds().height);
     popupWin.show();
+    // After a copy (not a hotkey) Windows won't hand us focus by itself.
+    if (fromCopy) doubleCopy.bringToFront(popupWin);
     popupWin.focus();
     popupWin.webContents.focus();
     setTimeout(() => {
@@ -244,6 +281,7 @@ function main() {
         // Windows can refuse focus to background apps; nudge it once more.
         popupWin.setAlwaysOnTop(false);
         popupWin.setAlwaysOnTop(true, 'pop-up-menu');
+        doubleCopy.bringToFront(popupWin);
         popupWin.focus();
         log.info('popup focus retry', popupWin.isFocused());
       }
@@ -293,6 +331,7 @@ function main() {
         quality: choice.quality,
         folder,
         title: info ? info.title : null,
+        key: info ? info.key : null,
         infoJson: info ? info.infoJson : null,
         useCookies: !!(info && info.useCookies),
       });
@@ -356,8 +395,13 @@ function main() {
 
   function openPanel() {
     progressPinned = true;
-    send(progressWin, 'progress:meta', { hotkey: config.get().hotkey });
+    sendProgressMeta();
     showProgress({ force: true });
+  }
+
+  function sendProgressMeta() {
+    const cfg = config.get();
+    send(progressWin, 'progress:meta', { hotkey: cfg.hotkey, doubleCopy: cfg.doubleCopy && doubleCopy.available() });
   }
 
   function togglePanel() {
@@ -420,16 +464,19 @@ function main() {
     if (file) shell.showItemInFolder(file);
     else if (j) shell.openPath(j.folder);
   });
-  // Card click: open the video/song in the default player.
-  ipcMain.on('progress:play', async (_e, id) => {
-    const file = fileOf(id);
-    const j = ytdlp.get(id);
-    if (!file) return j && shell.openPath(j.folder);
+  // Open the video/song in the default player; a playlist opens its folder.
+  async function openResult({ file, folder, count }) {
+    if (count > 1 || !file || !fs.existsSync(file)) return folder && shell.openPath(folder);
     const err = await shell.openPath(file);
     if (err) {
       log.warn('open file failed', file, err);
       shell.showItemInFolder(file);
     }
+  }
+  // Card click.
+  ipcMain.on('progress:play', (_e, id) => {
+    const j = ytdlp.get(id);
+    if (j) openResult(j);
   });
   ipcMain.on('progress:retry', (_e, id) => {
     const j = ytdlp.get(id);
@@ -438,13 +485,38 @@ function main() {
       return;
     }
     ytdlp.dismiss(id);
-    ytdlp.start({ url: j.url, format: j.format, quality: j.quality, folder: j.folder, title: j.title });
+    ytdlp.start({ url: j.url, format: j.format, quality: j.quality, folder: j.folder, title: j.listTitle || j.title, key: j.key });
+  });
+
+  // ---- "download finished" notification ----
+  // A tray balloon, which Windows shows as a normal notification. Unlike
+  // Electron's Notification it works without a Start menu shortcut, which the
+  // portable build doesn't have.
+  let balloonTarget = null; // what clicking the notification opens
+  const clip = (s, n) => (s.length > n ? s.slice(0, n - 1) + '…' : s);
+  ytdlp.events.on('finished', (j) => {
+    if (!tray || !config.get().notify) return;
+    const ok = j.state === 'done';
+    const list = j.count > 1;
+    balloonTarget = ok ? { file: j.file, folder: j.folder, count: j.count } : { panel: true };
+    const name = list ? j.listTitle || j.title : j.title;
+    let content;
+    if (!ok) content = `${clip(name, 120)}\n${clip(j.error || 'Bilinmeyen hata', 120)}`;
+    else if (list) content = `${clip(name, 160)} · ${j.count} video\nKlasörü açmak için tıkla.`;
+    else content = `${clip(name, 180)}\n${j.format === 'mp3' ? 'Dinlemek' : 'İzlemek'} için tıkla.`;
+    tray.displayBalloon({
+      icon: path.join(ASSETS, 'icon.png'),
+      title: ok ? (list ? 'Oynatma listesi indirildi' : 'İndirme tamamlandı') : 'İndirme başarısız',
+      content,
+      respectQuietTime: true,
+    });
   });
   ipcMain.handle('progress:state', () => ({
     jobs: ytdlp.list(),
     components: components.getStatus(),
     update: updater.getState(),
     hotkey: config.get().hotkey,
+    doubleCopy: config.get().doubleCopy && doubleCopy.available(),
   }));
 
   let lastActive = -1;
@@ -514,6 +586,7 @@ function main() {
     version: app.getVersion(),
     dataDir: paths.dataDir,
     hotkeyActive: !!registeredHotkey,
+    doubleCopyAvailable: doubleCopy.available(),
     components: components.getStatus(),
     update: updater.getState(),
     updateRepo: updater.repo,
@@ -534,11 +607,17 @@ function main() {
     }
     if (typeof patch.openAtLogin === 'boolean') allowed.openAtLogin = patch.openAtLogin;
     if (typeof patch.autoUpdate === 'boolean') allowed.autoUpdate = patch.autoUpdate;
+    if (typeof patch.doubleCopy === 'boolean') allowed.doubleCopy = patch.doubleCopy;
+    if (typeof patch.notify === 'boolean') allowed.notify = patch.notify;
     if (['', 'firefox', 'chrome', 'edge', 'brave', 'opera', 'vivaldi'].includes(patch.cookiesBrowser)) {
       allowed.cookiesBrowser = patch.cookiesBrowser;
     }
     const cfg = config.update(allowed);
     applyLoginItem();
+    if ('doubleCopy' in allowed) {
+      applyDoubleCopy();
+      sendProgressMeta();
+    }
     return cfg;
   });
   ipcMain.handle('settings:setHotkey', (_e, accel) => {
@@ -592,7 +671,32 @@ function main() {
   function createTray() {
     tray = new Tray(path.join(ASSETS, 'tray.ico'));
     tray.on('click', () => togglePanel());
+    tray.on('balloon-click', () => {
+      const t = balloonTarget;
+      balloonTarget = null;
+      if (!t) return;
+      if (t.panel) openPanel();
+      else openResult(t);
+    });
     refreshTray();
+  }
+
+  // Without this, notifications are headed "app.pitaya". Windows reads the
+  // name and icon of an app id from here (per user, no admin needed).
+  function registerAppName() {
+    const icon = path.join(paths.dataDir, 'icon.png');
+    try {
+      fs.writeFileSync(icon, fs.readFileSync(path.join(ASSETS, 'icon.png')));
+    } catch (e) {
+      log.warn('icon copy failed', e.message);
+    }
+    const key = 'HKCU\\Software\\Classes\\AppUserModelId\\app.pitaya';
+    const reg = (name, value) =>
+      require('child_process').execFile('reg', ['add', key, '/v', name, '/t', 'REG_SZ', '/d', value, '/f'], { windowsHide: true }, (err) => {
+        if (err) log.warn('app name registration failed', name, err.message);
+      });
+    reg('DisplayName', 'Pitaya');
+    reg('IconUri', icon);
   }
 
   function applyLoginItem() {
@@ -642,6 +746,7 @@ function main() {
     createPopup();
     createProgress();
     applyLoginItem();
+    registerAppName();
 
     const firstRun = !components.isReady();
     if (!registerHotkey(config.get().hotkey)) {
@@ -661,6 +766,7 @@ function main() {
     else if (manualLaunch) openPanel();
     if (updated) log.info('started after update', app.getVersion());
 
+    applyDoubleCopy();
     await components.ensure();
     components.updateYtdlp();
     // Cheap check; it only goes online once a day, and waits while yt-dlp is busy.

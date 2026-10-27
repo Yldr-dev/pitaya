@@ -137,7 +137,32 @@ function renderMeta() {
   }
   // No preview to show (site gave none): drop the empty box.
   img.parentElement.hidden = !loading && !src;
+  renderDup();
   reportSize();
+}
+
+function ago(t) {
+  const day = (x) => new Date(x).setHours(0, 0, 0, 0);
+  const days = Math.round((day(Date.now()) - day(t)) / 86400000);
+  if (days <= 0) return 'bugün';
+  if (days === 1) return 'dün';
+  if (days < 30) return `${days} gün önce`;
+  return new Date(t).toLocaleDateString('tr-TR');
+}
+
+function renderDup() {
+  const d = data.dup;
+  const box = $('dup');
+  box.hidden = !d;
+  if (!d) return;
+  if (d.active) {
+    box.textContent = 'Bu video şu an indiriliyor.';
+  } else {
+    const fmt = d.format === 'mp3' ? 'MP3' : d.quality && d.quality !== 'best' ? `${d.quality}p MP4` : 'MP4';
+    const what = d.count > 1 ? `Bu liste ${d.count} video olarak` : 'Daha önce';
+    box.textContent = `${what} indirildi · ${fmt} · ${ago(d.at)} · ${d.folder}`;
+  }
+  box.title = box.textContent;
 }
 
 function render() {
@@ -283,10 +308,11 @@ api.on('popup:show', (payload) => {
   go('format');
 });
 
-api.on('popup:info', ({ url, info: i, error }) => {
+api.on('popup:info', ({ url, info: i, error, dup }) => {
   if (!data || data.url !== url) return;
   info = i || null;
   infoError = error || null;
+  if (dup !== undefined) data.dup = dup;
   if (step === 'quality') {
     const key = options[sel] && options[sel].key;
     options = buildOptions();

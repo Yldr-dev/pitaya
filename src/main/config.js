@@ -28,6 +28,8 @@ function defaults() {
     openAtLogin: true,
     autoUpdate: true,
     cookiesBrowser: '', // '' | firefox | chrome | edge | brave | opera | vivaldi
+    doubleCopy: true, // copying a link twice quickly (Ctrl+C, Ctrl+C) opens the popup
+    notify: true, // Windows notification when a download finishes
   };
 }
 
