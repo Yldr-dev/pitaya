@@ -70,14 +70,27 @@ function card({ badge, name, progress, status, right, cls, buttons = [], action,
   return item;
 }
 
+const isAudio = (f) => f && f !== 'mp4';
+const ACTIVE = ['starting', 'downloading', 'processing'];
+
 function jobCard(j) {
-  const badge = j.format === 'mp3' ? 'MP3' : j.quality && j.quality !== 'best' ? `${j.quality}p` : 'MP4';
+  const badge = isAudio(j.format)
+    ? j.format === 'opus' ? 'Opus' : j.format.toUpperCase()
+    : j.quality && j.quality !== 'best' ? `${j.quality}p` : 'MP4';
   const list = j.count > 1;
   const base = { badge, name: j.title, progress: j.progress };
   // Playlists: "3/25 · " in front of the status line.
   const pos = list && j.index ? `${j.index}/${j.count} · ` : '';
   const cancel = button('✕', 'İndirmeyi iptal et', 'cancel', j.id);
   switch (j.state) {
+    case 'queued':
+      return card({
+        ...base,
+        cls: 'queued',
+        progress: 0,
+        status: j.queuePos > 1 ? `Sırada · ${j.queuePos}. sırada` : 'Sırada · bir sonraki',
+        buttons: [button('✕', 'Sıradan çıkar', 'cancel', j.id)],
+      });
     case 'starting':
       return card({ ...base, cls: 'indeterminate', status: 'Başlıyor…', buttons: [cancel] });
     case 'downloading':
@@ -92,7 +105,7 @@ function jobCard(j) {
         ...base,
         // A playlist keeps its real bar; only the current video is being processed.
         cls: list ? '' : 'indeterminate',
-        status: pos + (j.format === 'mp3' ? 'MP3’e dönüştürülüyor…' : 'Birleştiriliyor…'),
+        status: pos + (isAudio(j.format) ? 'Ses dosyası hazırlanıyor…' : 'Birleştiriliyor…'),
         buttons: [cancel],
       });
     case 'done':
@@ -103,7 +116,7 @@ function jobCard(j) {
         progress: 1,
         status: list
           ? `Tamamlandı · ${j.count} video · klasörü açmak için tıkla`
-          : j.format === 'mp3'
+          : isAudio(j.format)
             ? 'Tamamlandı · dinlemek için tıkla'
             : 'Tamamlandı · izlemek için tıkla',
         buttons: [button('📂', 'Klasörde göster', 'open', j.id), button('✕', 'Listeden kaldır', 'dismiss', j.id)],
@@ -129,8 +142,13 @@ function render() {
   const logo = el('img');
   logo.src = '../../assets/logo-128.png';
   head.append(logo, el('span', null, 'Pitaya'));
-  const active = jobs.filter((j) => ['starting', 'downloading', 'processing'].includes(j.state)).length;
-  head.append(el('span', 'count', active ? `${active} indirme sürüyor` : ''));
+  // Running first, then the queue in order, then finished ones newest first.
+  const running = jobs.filter((j) => ACTIVE.includes(j.state));
+  const queued = jobs.filter((j) => j.state === 'queued').map((j, i) => ({ ...j, queuePos: i + 1 }));
+  const finished = jobs.filter((j) => !ACTIVE.includes(j.state) && j.state !== 'queued').reverse();
+  const count = [running.length ? 'İndiriliyor' : '', queued.length ? `${queued.length} sırada` : ''].filter(Boolean);
+  head.append(el('span', 'count', count.join(' · ')));
+  head.append(button('🕘', 'İndirme geçmişi', 'history'));
   head.append(button('⚙', 'Ayarlar', 'settings'));
   head.append(button('—', 'Gizle (indirmeler arka planda sürer)', 'hide'));
   app.append(head);
@@ -181,7 +199,9 @@ function render() {
     app.append(card({ name: `Pitaya ${update.version} hazır`, progress: 1, cls: 'done', status: 'İndirmeler bitince yeniden başlatılacak' }));
   }
 
-  [...jobs].reverse().slice(0, 6).forEach((j) => app.append(jobCard(j)));
+  const shown = [...running, ...queued, ...finished];
+  shown.slice(0, 6).forEach((j) => app.append(jobCard(j)));
+  if (shown.length > 6) app.append(el('div', 'more', `+${shown.length - 6} indirme daha`));
   requestAnimationFrame(() => api.send('progress:resize', app.offsetHeight + 2));
 }
 

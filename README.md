@@ -6,11 +6,16 @@ Arka planda çalışan, tek kısayolla video indiren küçük bir Windows uygula
 
 1. Bir video linkini kopyala (YouTube, X, Instagram, TikTok, Reddit… yt-dlp'nin desteklediği 1000+ site).
 2. Kısayola bas (varsayılan **Ctrl + Alt + P**) — ya da linki kopyalarken **Ctrl + C**'ye art arda iki kez bas.
-3. Seç: **MP3 / MP4** → (MP4 ise) **kalite** → **klasör**. Rakam tuşlarıyla tek tuşta seçilebilir.
+3. Seç: **biçim** → (MP4 ise) **kalite** → **klasör**. Rakam tuşlarıyla tek tuşta seçilebilir.
+   Biçimler: MP3, MP4, M4A, Opus, FLAC, WAV.
 
 İndirme sağ alt köşede görünür; bitince Windows bildirimi gelir, tıklayıp dosyayı açabilirsin.
+Panel, inen bir şey kalmayınca 10 saniye sonra kapanır (fare üstündeyse beklemeye devam eder).
 
-- MP3'lere videonun küçük resmi kapak olarak eklenir.
+- İndirmeler sırayla yapılır: aynı anda bir tane iner, diğerleri sırada bekler.
+- **İndirme geçmişi** ayrı bir pencerede açılır: paneldeki 🕘 düğmesi, Ayarlar ya da tepsi menüsünden.
+  Aranabilir; dosyayı açma, klasörde gösterme ve tekrar indirme buradan yapılır.
+- Ses dosyalarına (WAV hariç) videonun küçük resmi kapak olarak eklenir.
 - Daha önce indirdiğin bir videoyu tekrar açarsan popup bunu söyler (biçim, tarih, klasör).
 - Oynatma listelerinde ilerleme panelinde kaçıncı videoda olduğun görünür (ör. 3/25).
 - Çift Ctrl+C ve bildirimler Ayarlar'dan kapatılabilir.
@@ -55,7 +60,7 @@ GitHub Actions uygulamayı derler ve zip'i Release olarak yayınlar. Kullanıcı
 | `src/main/main.js` | Tepsi simgesi, global kısayol, pencereler |
 | `src/main/ytdlp.js` | Kaliteleri okuma, indirme ve ilerleme |
 | `src/main/doublecopy.js` | Çift Ctrl+C'yi algılama (Windows pano sayacı, koffi ile) |
-| `src/main/history.js` | İndirme geçmişi ("daha önce indirildi" uyarısı için) |
+| `src/main/history.js` | İndirme geçmişi (Geçmiş penceresi ve "daha önce indirildi" uyarısı) |
 | `src/main/components.js` | yt-dlp / ffmpeg / Deno'yu indirip güncel tutma |
 | `src/main/updater.js` | GitHub Releases'tan kendini güncelleme |
 | `src/renderer/` | Popup, ilerleme paneli ve ayarlar arayüzü |

@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'">
+  <title>Pitaya — İndirme geçmişi</title>
+  <link rel="stylesheet" href="base.css">
+  <link rel="stylesheet" href="history.css">
+</head>
+<body>
+  <div class="titlebar">
+    <img src="../../assets/logo-128.png" alt="">
+    <span>İndirme geçmişi</span>
+  </div>
+
+  <div class="toolbar">
+    <input id="search" type="search" placeholder="Ara…" spellcheck="false" autocomplete="off">
+    <div class="chips" role="tablist">
+      <button class="chip active" data-filter="all">Tümü</button>
+      <button class="chip" data-filter="video">Video</button>
+      <button class="chip" data-filter="audio">Ses</button>
+    </div>
+    <button id="clear" class="btn ghost" title="Listeyi temizle (dosyalar silinmez)">Temizle</button>
+  </div>
+
+  <main id="list"></main>
+
+  <script src="history.js"></script>
+</body>
+</html>

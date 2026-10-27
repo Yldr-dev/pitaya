@@ -43,8 +43,13 @@ function reportSize() {
 function buildOptions() {
   if (step === 'format') {
     return [
-      { key: 'mp3', main: 'MP3', sub: 'Sadece ses' },
+      // MP3 and MP4 keep keys 1 and 2; the other audio formats come after.
+      { key: 'mp3', main: 'MP3', sub: 'Ses · her yerde çalışır' },
       { key: 'mp4', main: 'MP4', sub: 'Video' },
+      { key: 'm4a', main: 'M4A', sub: 'Ses · AAC, genelde dönüştürmeden' },
+      { key: 'opus', main: 'Opus', sub: 'Ses · en küçük dosya' },
+      { key: 'flac', main: 'FLAC', sub: 'Ses · kayıpsız (kaynak kalitesini aşmaz)' },
+      { key: 'wav', main: 'WAV', sub: 'Ses · sıkıştırmasız, düzenleme için' },
     ];
   }
   if (step === 'quality') {
@@ -156,9 +161,12 @@ function renderDup() {
   box.hidden = !d;
   if (!d) return;
   if (d.active) {
-    box.textContent = 'Bu video şu an indiriliyor.';
+    box.textContent = d.queued ? 'Bu video zaten sırada.' : 'Bu video şu an indiriliyor.';
   } else {
-    const fmt = d.format === 'mp3' ? 'MP3' : d.quality && d.quality !== 'best' ? `${d.quality}p MP4` : 'MP4';
+    const fmt =
+      d.format !== 'mp4'
+        ? d.format === 'opus' ? 'Opus' : String(d.format).toUpperCase()
+        : d.quality && d.quality !== 'best' ? `${d.quality}p MP4` : 'MP4';
     const what = d.count > 1 ? `Bu liste ${d.count} video olarak` : 'Daha önce';
     box.textContent = `${what} indirildi · ${fmt} · ${ago(d.at)} · ${d.folder}`;
   }
@@ -171,7 +179,7 @@ function render() {
   const order = ['format', 'quality', 'folder'];
   for (const s of document.querySelectorAll('#steps span')) {
     const k = s.dataset.step;
-    s.hidden = k === 'quality' && choice.format === 'mp3';
+    s.hidden = k === 'quality' && !!choice.format && choice.format !== 'mp4';
     s.classList.toggle('active', k === step);
     s.classList.toggle('done', order.indexOf(k) < order.indexOf(step));
   }

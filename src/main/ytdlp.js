@@ -224,13 +224,15 @@ function rawError(stderr) {
 }
 
 // ---------- downloads ----------
+//
+// Downloads run one at a time; the rest wait in a queue ("queued").
 
 const jobs = new Map();
 const events = new EventEmitter();
 let nextId = 1;
 
 function publicJob(j) {
-  const { child, ...rest } = j;
+  const { child, launch, ...rest } = j;
   return rest;
 }
 
@@ -243,33 +245,47 @@ const PP = '[pitaya-pp]';
 const FMT = '[pitaya-fmt]';
 const FILE = '[pitaya-file]';
 
+// Audio formats extract the sound track. M4A and Opus pick a matching source
+// stream when there is one, so they are usually copied without re-encoding.
+const AUDIO = {
+  mp3: ['-f', 'ba/b', '-x', '--audio-format', 'mp3', '--audio-quality', '0'],
+  m4a: ['-f', 'ba[ext=m4a]/ba/b', '-x', '--audio-format', 'm4a', '--audio-quality', '0'],
+  opus: ['-f', 'ba[acodec^=opus]/ba/b', '-x', '--audio-format', 'opus', '--audio-quality', '0'],
+  flac: ['-f', 'ba/b', '-x', '--audio-format', 'flac'],
+  wav: ['-f', 'ba/b', '-x', '--audio-format', 'wav'],
+};
+const FORMATS = ['mp4', ...Object.keys(AUDIO)];
+const isAudio = (format) => Object.prototype.hasOwnProperty.call(AUDIO, format);
+
 function formatArgs(format, quality) {
-  if (format === 'mp3') {
-    // Cover art: the video thumbnail, converted to JPG so every player shows it.
-    return [
-      '-f', 'ba/b', '-x', '--audio-format', 'mp3', '--audio-quality', '0', '--embed-metadata',
-      '--embed-thumbnail', '--convert-thumbnails', 'jpg',
-    ];
+  if (isAudio(format)) {
+    const args = [...AUDIO[format], '--embed-metadata'];
+    // Cover art: the video thumbnail as JPG. WAV files can't hold one.
+    if (format !== 'wav') args.push('--embed-thumbnail', '--convert-thumbnails', 'jpg');
+    return args;
   }
   const sort = quality === 'best' ? 'res,vcodec:h264,acodec:aac' : `res:${quality},vcodec:h264,acodec:aac`;
   return ['-f', 'bv*+ba/b', '-S', sort, '--merge-output-format', 'mp4', '--remux-video', 'mp4', '--embed-metadata'];
 }
 
-// infoJson: file from fetchInfo. Using it skips a second ~5 s extraction.
-function start({ url, format, quality, folder, title, key, infoJson, useCookies }) {
+// Adds a download to the queue. infoJson: file from fetchInfo; using it skips
+// a second ~5 s extraction.
+function start({ url, format, quality, folder, title, key, thumbnail, infoJson, useCookies }) {
+  if (!FORMATS.includes(format)) throw new Error(`Bilinmeyen biçim: ${format}`);
   const id = nextId++;
-  const job = {
+  jobs.set(id, {
     id,
     url,
     key: key || null,
     format,
-    quality,
+    quality: isAudio(format) ? null : quality,
     folder,
     title: title || url,
+    thumbnail: thumbnail || null,
     listTitle: null, // playlist name, when the link is a playlist
     index: 0, // current video in a playlist (1-based)
     count: 0, // videos in the playlist; 0 for a single video
-    state: 'starting', // starting | downloading | processing | done | error | canceled
+    state: 'queued', // queued | starting | downloading | processing | done | error | canceled
     progress: 0,
     speed: null,
     eta: null,
@@ -277,13 +293,42 @@ function start({ url, format, quality, folder, title, key, infoJson, useCookies 
     error: null,
     parts: 1,
     part: 0,
-    startedAt: Date.now(),
-  };
-  jobs.set(id, job);
+    startedAt: null,
+    launch: { infoJson, useCookies },
+  });
+  emit();
+  pump();
+  return id;
+}
+
+// Starts the next queued download when nothing is running.
+function pump() {
+  const all = [...jobs.values()];
+  if (all.some((j) => j.child)) return;
+  const next = all.find((j) => j.state === 'queued');
+  if (next) launch(next);
+}
+
+function fail(job, message) {
+  Object.assign(job, { state: 'error', error: message, child: null });
+  emit();
+  events.emit('finished', publicJob(job));
+  pump();
+}
+
+function launch(job) {
+  const { id, url, format, quality, folder } = job;
+  const { infoJson, useCookies } = job.launch;
+  Object.assign(job, { state: 'starting', startedAt: Date.now() });
   emit();
 
   const tmp = path.join(paths.tempDir, `job-${id}`);
-  fs.mkdirSync(folder, { recursive: true });
+  try {
+    fs.mkdirSync(folder, { recursive: true });
+  } catch (e) {
+    log.error('folder unusable', folder, e.message);
+    return fail(job, 'Klasör oluşturulamadı ya da yazılamıyor. Başka bir klasör seç.');
+  }
 
   const args = [
     ...formatArgs(format, quality),
@@ -299,7 +344,8 @@ function start({ url, format, quality, folder, title, key, infoJson, useCookies 
     '--progress-template',
     `postprocess:${PP}%(progress.postprocessor)s`,
     // Title goes last: it may contain "|".
-    '--print', `before_dl:${FMT}%(format_id)s|%(playlist_index)s|%(n_entries,playlist_count)s|%(extractor_key)s:%(id)s|%(title)s`,
+    '--print',
+    `before_dl:${FMT}%(format_id)s|%(playlist_index)s|%(n_entries,playlist_count)s|%(extractor_key)s:%(id)s|%(webpage_url)s|%(thumbnail)s|%(title)s`,
     '--print', `after_move:${FILE}%(filepath)s`,
   ];
 
@@ -310,147 +356,179 @@ function start({ url, format, quality, folder, title, key, infoJson, useCookies 
   } catch {}
 
   const run = (useJson, cookies) => {
-  const full = [...baseArgs({ cookies }), ...args, ...(useJson ? ['--load-info-json', infoJson] : ['--', url])];
-  log.info('download start', id, format, quality, useJson ? '(saved info)' : '', cookies ? '(browser session)' : '', url);
+    const full = [...baseArgs({ cookies }), ...args, ...(useJson ? ['--load-info-json', infoJson] : ['--', url])];
+    log.info('download start', id, format, quality, useJson ? '(saved info)' : '', cookies ? '(browser session)' : '', url);
 
-  const child = spawn(bin.ytdlp, full, { windowsHide: true, env: toolEnv() });
-  job.child = child;
-  running++;
-  let stderr = '';
-  let buf = '';
-  let lastEmit = 0;
-  let lastDone = 0;
+    const child = spawn(bin.ytdlp, full, { windowsHide: true, env: toolEnv() });
+    job.child = child;
+    running++;
+    let stderr = '';
+    let buf = '';
+    let lastEmit = 0;
+    let lastDone = 0;
+    let videoUrl = null; // the current video's own page (differs from url in a playlist)
 
-  const num = (s) => (s && s !== 'NA' && s !== 'None' ? Number(s) : null);
-  // In a playlist the bar shows the whole list, not just the current video.
-  const overall = (p) => (job.count > 1 ? (Math.max(job.index, 1) - 1 + p) / job.count : p);
+    const num = (s) => (s && s !== 'NA' && s !== 'None' ? Number(s) : null);
+    const str = (s) => (s && s !== 'NA' && s !== 'None' ? s : null);
+    // In a playlist the bar shows the whole list, not just the current video.
+    const overall = (p) => (job.count > 1 ? (Math.max(job.index, 1) - 1 + p) / job.count : p);
 
-  const onLine = (line) => {
-    if (line.startsWith(DL)) {
-      const [done, total, est, speed, eta] = line.slice(DL.length).split('|');
-      const t = num(total) || num(est);
-      const d = num(done) || 0;
-      // Byte counter dropping back means the next stream (e.g. audio) started.
-      if (d < lastDone && job.part < job.parts - 1) job.part++;
-      lastDone = d;
-      const frac = t ? Math.min(d / t, 1) : 0;
-      job.state = 'downloading';
-      job.progress = overall((job.part + frac) / job.parts);
-      job.speed = num(speed);
-      job.eta = num(eta);
-    } else if (line.startsWith(PP)) {
-      job.state = 'processing';
-      job.progress = overall(1);
-      job.speed = null;
-      job.eta = null;
-    } else if (line.startsWith(FMT)) {
-      const [fmt, index, count, key, ...rest] = line.slice(FMT.length).split('|');
-      const n = num(count) || 0;
-      if (n > 1) {
-        if (!job.listTitle) job.listTitle = job.title;
-        job.count = n;
-        job.index = num(index) || job.index + 1;
+    const onLine = (line) => {
+      if (line.startsWith(DL)) {
+        const [done, total, est, speed, eta] = line.slice(DL.length).split('|');
+        const t = num(total) || num(est);
+        const d = num(done) || 0;
+        // Byte counter dropping back means the next stream (e.g. audio) started.
+        if (d < lastDone && job.part < job.parts - 1) job.part++;
+        lastDone = d;
+        const frac = t ? Math.min(d / t, 1) : 0;
+        job.state = 'downloading';
+        job.progress = overall((job.part + frac) / job.parts);
+        job.speed = num(speed);
+        job.eta = num(eta);
+      } else if (line.startsWith(PP)) {
+        job.state = 'processing';
+        job.progress = overall(1);
+        job.speed = null;
+        job.eta = null;
+      } else if (line.startsWith(FMT)) {
+        const [fmt, index, count, key, pageUrl, thumb, ...rest] = line.slice(FMT.length).split('|');
+        const n = num(count) || 0;
+        if (n > 1) {
+          if (!job.listTitle) job.listTitle = job.title;
+          job.count = n;
+          job.index = num(index) || job.index + 1;
+        }
+        if (key && !/^(NA|None):|:(NA|None)$/.test(key)) job.key = key;
+        videoUrl = str(pageUrl);
+        if (str(thumb) && (n > 1 || !job.thumbnail)) job.thumbnail = str(thumb);
+        job.title = rest.join('|') || job.title;
+        job.parts = fmt.split('+').length;
+        job.part = 0;
+        lastDone = 0;
+      } else if (line.startsWith(FILE)) {
+        job.file = line.slice(FILE.length).trim();
+        history.add({
+          url: job.count > 1 ? videoUrl : url,
+          key: job.key,
+          title: job.title,
+          thumbnail: job.thumbnail,
+          format,
+          quality: job.quality,
+          folder,
+          file: job.file,
+        });
+      } else {
+        return;
       }
-      if (key && !/^(NA|None):|:(NA|None)$/.test(key)) job.key = key;
-      job.title = rest.join('|') || job.title;
-      job.parts = fmt.split('+').length;
-      job.part = 0;
-      lastDone = 0;
-    } else if (line.startsWith(FILE)) {
-      job.file = line.slice(FILE.length).trim();
-      history.add({ url: job.count > 1 ? null : url, key: job.key, title: job.title, format, quality, file: job.file });
-    } else {
-      return;
-    }
-    const now = Date.now();
-    if (now - lastEmit > 150) {
-      lastEmit = now;
-      emit();
-    }
-  };
-
-  child.stdout.on('data', (d) => {
-    buf += d.toString('utf8');
-    let i;
-    while ((i = buf.search(/\r?\n|\r/)) >= 0) {
-      const line = buf.slice(0, i).trim();
-      buf = buf.slice(i + (buf[i] === '\r' && buf[i + 1] === '\n' ? 2 : 1));
-      if (line) onLine(line);
-    }
-  });
-  child.stderr.on('data', (d) => (stderr += d.toString('utf8')));
-
-  let finished = false;
-  const finish = (code) => {
-    if (finished) return; // 'error' and 'close' can both fire
-    finished = true;
-    running--;
-    if (code !== 0 && job.state !== 'canceled') {
-      let retry = null;
-      if (useJson) retry = [false, cookies]; // saved links may have expired
-      else if (!cookies && canUseCookies(stderr)) retry = [false, true]; // site wants a login
-      if (retry) {
-        log.warn('download failed, retrying', id, retry[1] ? 'with browser session' : 'from url', stderr.slice(-500));
-        Object.assign(job, { state: 'starting', progress: 0, speed: null, eta: null, part: 0, index: 0 });
+      const now = Date.now();
+      if (now - lastEmit > 150) {
+        lastEmit = now;
         emit();
-        return run(...retry);
       }
-    }
-    fs.rm(tmp, { recursive: true, force: true }, () => {});
-    if (job.state === 'canceled') {
+    };
+
+    child.stdout.on('data', (d) => {
+      buf += d.toString('utf8');
+      let i;
+      while ((i = buf.search(/\r?\n|\r/)) >= 0) {
+        const line = buf.slice(0, i).trim();
+        buf = buf.slice(i + (buf[i] === '\r' && buf[i + 1] === '\n' ? 2 : 1));
+        if (line) onLine(line);
+      }
+    });
+    child.stderr.on('data', (d) => (stderr += d.toString('utf8')));
+
+    let finished = false;
+    const finish = (code) => {
+      if (finished) return; // 'error' and 'close' can both fire
+      finished = true;
+      running--;
+      if (code !== 0 && job.state !== 'canceled') {
+        let retry = null;
+        if (useJson) retry = [false, cookies]; // saved links may have expired
+        else if (!cookies && canUseCookies(stderr)) retry = [false, true]; // site wants a login
+        if (retry) {
+          log.warn('download failed, retrying', id, retry[1] ? 'with browser session' : 'from url', stderr.slice(-500));
+          Object.assign(job, { state: 'starting', progress: 0, speed: null, eta: null, part: 0, index: 0 });
+          emit();
+          return run(...retry);
+        }
+      }
+      fs.rm(tmp, { recursive: true, force: true }, () => {});
       job.child = null;
-      return emit();
-    }
-    if (code === 0) {
-      job.state = 'done';
-      job.progress = 1;
-      log.info('download done', id, job.file);
-      // The playlist link itself, so copying it again shows "already downloaded".
-      if (job.count > 1 && job.file) {
-        history.add({ url, key: null, title: job.listTitle, format, quality, file: job.file, count: job.count });
+      if (job.state === 'canceled') {
+        emit();
+        return pump();
       }
-    } else {
-      job.state = 'error';
-      job.error = cleanError(stderr) || `yt-dlp çıkış kodu ${code}`;
-      log.error('download failed', id, url, stderr.slice(-2000));
-    }
-    job.child = null;
-    emit();
-    events.emit('finished', publicJob(job));
-  };
-  child.on('error', (e) => {
-    stderr += e.message;
-    finish(-1);
-  });
-  child.on('close', finish);
+      if (code === 0) {
+        job.state = 'done';
+        job.progress = 1;
+        log.info('download done', id, job.file);
+        // The playlist link itself, so copying it again shows "already downloaded".
+        if (job.count > 1 && job.file) {
+          history.add({
+            url,
+            key: null,
+            title: job.listTitle,
+            thumbnail: job.thumbnail,
+            format,
+            quality: job.quality,
+            folder,
+            file: job.file,
+            count: job.count,
+          });
+        }
+      } else {
+        job.state = 'error';
+        job.error = cleanError(stderr) || `yt-dlp çıkış kodu ${code}`;
+        log.error('download failed', id, url, stderr.slice(-2000));
+      }
+      emit();
+      events.emit('finished', publicJob(job));
+      pump();
+    };
+    child.on('error', (e) => {
+      stderr += e.message;
+      finish(-1);
+    });
+    child.on('close', finish);
   };
 
   run(jsonOk, !!useCookies);
-  return id;
 }
 
 function cancel(id) {
   const job = jobs.get(id);
-  if (!job || !job.child) return;
+  if (!job) return;
+  if (job.state === 'queued') {
+    job.state = 'canceled';
+    return emit();
+  }
+  if (!job.child) return;
   job.state = 'canceled';
   killTree(job.child);
   emit();
 }
 
+const FINISHED = ['done', 'error', 'canceled'];
+const isFinished = (j) => !j.child && FINISHED.includes(j.state);
+
 function dismiss(id) {
   const job = jobs.get(id);
-  if (job && !job.child) {
+  if (job && isFinished(job)) {
     jobs.delete(id);
     emit();
   }
 }
 
 function clearFinished() {
-  for (const [id, j] of jobs) if (!j.child) jobs.delete(id);
+  for (const [id, j] of jobs) if (isFinished(j)) jobs.delete(id);
   emit();
 }
 
-const activeCount = () => [...jobs.values()].filter((j) => j.child).length;
+// Running or waiting in the queue.
+const activeCount = () => [...jobs.values()].filter((j) => !isFinished(j)).length;
 
 module.exports = {
   fetchInfo,
@@ -460,6 +538,8 @@ module.exports = {
   clearFinished,
   activeCount,
   isBusy: () => running > 0,
+  isAudio,
+  FORMATS,
   events,
   list: () => [...jobs.values()].map(publicJob),
   get: (id) => jobs.get(id),

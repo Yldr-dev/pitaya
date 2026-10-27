@@ -162,11 +162,11 @@ function main() {
     return entry;
   }
 
-  // Is this video downloading right now, or was it downloaded before?
+  // Is this video downloading (or queued) right now, or was it downloaded before?
   function dupFor(url, key) {
-    const busy = ['starting', 'downloading', 'processing'];
+    const busy = ['queued', 'starting', 'downloading', 'processing'];
     const active = ytdlp.list().find((j) => busy.includes(j.state) && (j.url === url || (key && j.key === key)));
-    if (active) return { active: true };
+    if (active) return { active: true, queued: active.state === 'queued' };
     const r = history.find(url, key);
     if (!r) return null;
     const dir = path.dirname(r.file);
@@ -310,6 +310,7 @@ function main() {
 
   ipcMain.on('popup:choose', (_e, choice) => {
     hidePopup();
+    if (!ytdlp.FORMATS.includes(choice.format)) return log.warn('unknown format', choice.format);
     const cfg = config.get();
     let folder = choice.customFolder;
     if (!folder) folder = (cfg.folders[choice.folderIndex] || cfg.folders[0] || {}).path;
@@ -332,6 +333,7 @@ function main() {
         folder,
         title: info ? info.title : null,
         key: info ? info.key : null,
+        thumbnail: info ? info.thumbnail : null,
         infoJson: info ? info.infoJson : null,
         useCookies: !!(info && info.useCookies),
       });
@@ -376,8 +378,11 @@ function main() {
   // The user hid the panel with "—": stay hidden until they start a new
   // download or open it from the tray.
   let progressUserHidden = false;
-  // Opened on purpose (tray click): stays until the user closes it.
+  // Opened on purpose (tray click): shows even when there's nothing in it.
   let progressPinned = false;
+  // Mouse was on the panel when it was about to hide.
+  let progressHover = false;
+  const PANEL_IDLE_MS = 10000;
 
   function progressHasContent() {
     const c = components.getStatus().state;
@@ -390,6 +395,7 @@ function main() {
   function hideProgress() {
     clearTimeout(progressHideTimer);
     progressWin.__wantVisible = false;
+    progressHover = false;
     if (progressWin.isVisible()) progressWin.hide();
   }
 
@@ -397,6 +403,7 @@ function main() {
     progressPinned = true;
     sendProgressMeta();
     showProgress({ force: true });
+    maybeHideProgress();
   }
 
   function sendProgressMeta() {
@@ -426,17 +433,39 @@ function main() {
     }
   }
 
-  // Hide right away when empty, or a few seconds after everything finished.
+  // The panel never takes focus, so mouse-enter/leave events aren't reliable;
+  // ask Windows where the cursor is instead.
+  function cursorOnPanel() {
+    if (!progressWin.isVisible()) return false;
+    const p = screen.getCursorScreenPoint();
+    const b = progressWin.getBounds();
+    return p.x >= b.x && p.x < b.x + b.width && p.y >= b.y && p.y < b.y + b.height;
+  }
+
+  // Hide right away when empty. Otherwise, once nothing is downloading or
+  // waiting, hide after 10 s. While the mouse is on the panel it stays, and
+  // the 10 s start over once the mouse leaves.
   function maybeHideProgress() {
     clearTimeout(progressHideTimer);
+    progressHover = false;
     if (!progressHasContent()) return hideProgress();
-    if (progressPinned) return;
-    const busy = ytdlp.activeCount() > 0 || components.getStatus().state === 'installing';
+    const u = updater.getState().status;
+    const busy = ytdlp.activeCount() > 0 || components.getStatus().state === 'installing' || u === 'downloading';
     if (busy) return;
-    progressHideTimer = setTimeout(() => {
-      hideProgress();
-      ytdlp.clearFinished();
-    }, 8000);
+    const idle = () => {
+      if (cursorOnPanel()) {
+        progressHover = true;
+        progressHideTimer = setTimeout(idle, 500);
+      } else if (progressHover) {
+        progressHover = false;
+        progressHideTimer = setTimeout(idle, PANEL_IDLE_MS);
+      } else {
+        progressPinned = false;
+        hideProgress();
+        ytdlp.clearFinished();
+      }
+    };
+    progressHideTimer = setTimeout(idle, PANEL_IDLE_MS);
   }
 
   ipcMain.on('progress:resize', (_e, h) => {
@@ -485,8 +514,17 @@ function main() {
       return;
     }
     ytdlp.dismiss(id);
-    ytdlp.start({ url: j.url, format: j.format, quality: j.quality, folder: j.folder, title: j.listTitle || j.title, key: j.key });
+    ytdlp.start({
+      url: j.url,
+      format: j.format,
+      quality: j.quality,
+      folder: j.folder,
+      title: j.listTitle || j.title,
+      key: j.key,
+      thumbnail: j.thumbnail,
+    });
   });
+  ipcMain.on('progress:history', () => openHistory());
 
   // ---- "download finished" notification ----
   // A tray balloon, which Windows shows as a normal notification. Unlike
@@ -503,7 +541,7 @@ function main() {
     let content;
     if (!ok) content = `${clip(name, 120)}\n${clip(j.error || 'Bilinmeyen hata', 120)}`;
     else if (list) content = `${clip(name, 160)} · ${j.count} video\nKlasörü açmak için tıkla.`;
-    else content = `${clip(name, 180)}\n${j.format === 'mp3' ? 'Dinlemek' : 'İzlemek'} için tıkla.`;
+    else content = `${clip(name, 180)}\n${ytdlp.isAudio(j.format) ? 'Dinlemek' : 'İzlemek'} için tıkla.`;
     tray.displayBalloon({
       icon: path.join(ASSETS, 'icon.png'),
       title: ok ? (list ? 'Oynatma listesi indirildi' : 'İndirme tamamlandı') : 'İndirme başarısız',
@@ -536,6 +574,84 @@ function main() {
     send(settingsWin, 'settings:components', s);
     if (s.state === 'installing' || s.state === 'error') showProgress({ force: true });
     if (s.state === 'ready') maybeHideProgress();
+  });
+
+  // ---------------- history window ----------------
+
+  let historyWin = null;
+
+  function openHistory() {
+    if (historyWin && !historyWin.isDestroyed()) {
+      historyWin.show();
+      historyWin.focus();
+      return;
+    }
+    const dark = nativeTheme.shouldUseDarkColors;
+    historyWin = makeWindow('history.html', {
+      width: 600,
+      height: 680,
+      minWidth: 440,
+      minHeight: 400,
+      title: 'Pitaya — İndirme geçmişi',
+      titleBarStyle: 'hidden',
+      titleBarOverlay: { color: bg(), symbolColor: dark ? '#e8e3ea' : '#2a2530', height: 40 },
+    });
+    historyWin.once('ready-to-show', () => historyWin.show());
+    historyWin.on('closed', () => (historyWin = null));
+  }
+
+  // Entries for the window: newest first, folder shown by its Pitaya name.
+  function historyEntries() {
+    const folders = config.get().folders;
+    return history.all().map((r) => {
+      const known = folders.find((f) => path.resolve(f.path) === path.resolve(r.folder));
+      return { ...r, folderName: known ? known.name : path.basename(r.folder) || r.folder };
+    });
+  }
+
+  history.events.on('changed', () => {
+    send(historyWin, 'history:changed');
+    send(settingsWin, 'settings:historyCount', history.all().length);
+  });
+
+  ipcMain.handle('history:list', () => historyEntries());
+  ipcMain.on('history:open', (_e, id) => {
+    const r = history.get(id);
+    if (r) openResult({ file: r.file, folder: r.folder || path.dirname(r.file), count: r.count });
+  });
+  ipcMain.on('history:reveal', (_e, id) => {
+    const r = history.get(id);
+    if (!r) return;
+    if (fs.existsSync(r.file)) shell.showItemInFolder(r.file);
+    else shell.openPath(r.folder || path.dirname(r.file));
+  });
+  ipcMain.on('history:remove', (_e, id) => history.remove(id));
+  ipcMain.handle('history:clear', async () => {
+    const r = await dialog.showMessageBox(historyWin, {
+      type: 'question',
+      buttons: ['Temizle', 'Vazgeç'],
+      defaultId: 1,
+      cancelId: 1,
+      title: 'Pitaya',
+      message: 'İndirme geçmişi temizlensin mi?',
+      detail: 'Sadece liste silinir; indirdiğin dosyalar yerinde kalır.',
+    });
+    if (r.response === 0) history.clear();
+  });
+  // Download again into the same folder, same format and quality.
+  ipcMain.on('history:redownload', (_e, id) => {
+    const r = history.get(id);
+    if (!r || !r.url) return;
+    ytdlp.start({
+      url: r.url,
+      format: r.format,
+      quality: r.quality || 'best',
+      folder: r.folder || path.dirname(r.file),
+      title: r.title,
+      key: r.key,
+      thumbnail: r.thumbnail,
+    });
+    showProgress({ force: true });
   });
 
   // ---------------- settings ----------------
@@ -587,6 +703,7 @@ function main() {
     dataDir: paths.dataDir,
     hotkeyActive: !!registeredHotkey,
     doubleCopyAvailable: doubleCopy.available(),
+    historyCount: history.all().length,
     components: components.getStatus(),
     update: updater.getState(),
     updateRepo: updater.repo,
@@ -635,6 +752,7 @@ function main() {
   });
   ipcMain.on('settings:openData', () => shell.openPath(paths.dataDir));
   ipcMain.on('settings:openLog', () => shell.openPath(paths.logFile));
+  ipcMain.on('settings:openHistory', () => openHistory());
   ipcMain.handle('settings:checkUpdate', () => runUpdateCheck({ manual: true }));
   ipcMain.handle('settings:updateYtdlp', async () => {
     await components.updateYtdlp({ force: true });
@@ -660,6 +778,7 @@ function main() {
       Menu.buildFromTemplate([
         { label: `Panodaki linki indir${hk ? `\t${hk}` : ''}`, click: () => onHotkey() },
         { label: 'İndirmeleri göster', click: () => openPanel() },
+        { label: 'İndirme geçmişi', click: () => openHistory() },
         { type: 'separator' },
         { label: 'Ayarlar', click: openSettings },
         { type: 'separator' },

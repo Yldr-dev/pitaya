@@ -225,6 +225,12 @@ $('checkUpd').addEventListener('click', async (e) => {
   e.target.disabled = false;
 });
 
+function showHistoryCount(n) {
+  $('historyCount').textContent = n ? `${n} indirme kayıtlı` : 'Henüz kayıt yok';
+}
+$('openHistory').addEventListener('click', () => api.send('settings:openHistory'));
+api.on('settings:historyCount', showHistoryCount);
+
 $('openData').addEventListener('click', () => api.send('settings:openData'));
 $('openLog').addEventListener('click', () => api.send('settings:openLog'));
 
@@ -239,6 +245,7 @@ api.on('settings:update', renderUpdate);
   showKeys(cfg.hotkey);
   if (!s.hotkeyActive) setHint('Bu kısayol şu an çalışmıyor; başka bir uygulama kullanıyor olabilir. Değiştir.', true);
   renderFolders();
+  showHistoryCount(s.historyCount);
   $('openAtLogin').checked = !!cfg.openAtLogin;
   $('autoUpdate').checked = !!cfg.autoUpdate;
   $('notify').checked = !!cfg.notify;
