@@ -1,0 +1,60 @@
+{
+  "name": "pitaya",
+  "productName": "Pitaya",
+  "version": "0.1.0",
+  "description": "Kopyaladığın linkteki videoyu tek kısayolla MP3/MP4 olarak indirir.",
+  "author": "Yldr-dev",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Yldr-dev/pitaya.git"
+  },
+  "main": "src/main/main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "icons": "node scripts/build-icons.js",
+    "dist": "electron-builder --win zip --x64 --publish never"
+  },
+  "pitaya": {
+    "updateRepo": "Yldr-dev/pitaya"
+  },
+  "dependencies": {
+    "yauzl": "^3.4.0"
+  },
+  "devDependencies": {
+    "electron": "^45.0.0",
+    "electron-builder": "^26.18.0",
+    "png-to-ico": "^3.0.2",
+    "sharp": "^0.35.5"
+  },
+  "allowScripts": {
+    "electron@45.0.0": true
+  },
+  "build": {
+    "appId": "app.pitaya",
+    "productName": "Pitaya",
+    "asar": true,
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "package.json",
+      "!assets/*.svg"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "zip",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.ico",
+      "artifactName": "Pitaya-${version}-win-x64.${ext}"
+    }
+  }
+}

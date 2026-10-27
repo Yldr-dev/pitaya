@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="body" x1="0.15" y1="0" x2="0.85" y2="1">
+      <stop offset="0" stop-color="#FF5C9D"/>
+      <stop offset="1" stop-color="#D3145A"/>
+    </linearGradient>
+    <linearGradient id="bract" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#FF4F93"/>
+      <stop offset="0.5" stop-color="#FF7FB0"/>
+      <stop offset="1" stop-color="#9CCC65"/>
+    </linearGradient>
+    <linearGradient id="leaf" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#4E8F25"/>
+      <stop offset="1" stop-color="#A5D46A"/>
+    </linearGradient>
+    <!-- a bract: base at origin, flame-like tip pointing up and curling right -->
+    <path id="b" d="M-9 2 C -14 -14 -8 -34 12 -50 C 8 -32 12 -14 9 2 Z"/>
+  </defs>
+
+  <!-- crown -->
+  <path d="M128 58 C 114 44 110 24 116 6 C 130 20 134 40 128 58 Z" fill="url(#leaf)"/>
+  <path d="M122 62 C 102 58 88 44 82 26 C 102 30 116 42 122 62 Z" fill="url(#leaf)"/>
+  <path d="M134 62 C 154 58 168 44 174 26 C 154 30 140 42 134 62 Z" fill="url(#leaf)"/>
+
+  <!-- edge bracts (behind the body, sticking out) -->
+  <use href="#b" fill="url(#bract)" transform="translate(66 112) rotate(-58) scale(1.15)"/>
+  <use href="#b" fill="url(#bract)" transform="translate(190 112) scale(-1 1) rotate(-58) scale(1.15)"/>
+  <use href="#b" fill="url(#bract)" transform="translate(56 176) rotate(-74) scale(1.15)"/>
+  <use href="#b" fill="url(#bract)" transform="translate(200 176) scale(-1 1) rotate(-74) scale(1.15)"/>
+
+  <!-- fruit -->
+  <path d="M128 54 C 182 54 208 108 208 154 C 208 206 172 246 128 246 C 84 246 48 206 48 154 C 48 108 74 54 128 54 Z" fill="url(#body)"/>
+
+  <!-- face bracts -->
+  <use href="#b" fill="url(#bract)" transform="translate(100 118) rotate(-20)"/>
+  <use href="#b" fill="url(#bract)" transform="translate(156 118) scale(-1 1) rotate(-20)"/>
+  <use href="#b" fill="url(#bract)" transform="translate(128 170) rotate(-4) scale(1.1)"/>
+  <use href="#b" fill="url(#bract)" transform="translate(94 216) rotate(-34) scale(0.9)"/>
+  <use href="#b" fill="url(#bract)" transform="translate(162 216) scale(-1 1) rotate(-34) scale(0.9)"/>
+</svg>

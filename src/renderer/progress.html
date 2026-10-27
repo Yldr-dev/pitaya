@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
+  <title>Pitaya — İndirmeler</title>
+  <link rel="stylesheet" href="base.css">
+  <style>
+    html, body { overflow: hidden; }
+    body { border: 1px solid var(--border); }
+    #app { padding: 10px; display: flex; flex-direction: column; gap: 6px; }
+    .head { display: flex; align-items: center; gap: 8px; padding: 0 2px 2px; font-weight: 600; }
+    .head img { width: 18px; height: 18px; }
+    .head .count { margin-left: auto; font-weight: 400; font-size: 12px; color: var(--muted); }
+    .btn * { pointer-events: none; }
+    .head .btn { font-size: 14px; }
+    .empty { background: var(--surface); border-radius: 10px; padding: 14px 12px; text-align: center; font-size: 12px; }
+    .empty-title { font-weight: 600; font-size: 13px; margin-bottom: 4px; }
+    kbd { font: inherit; font-size: 11px; padding: 0 5px; margin: 0 2px; border-radius: 4px; border: 1px solid var(--border); background: var(--bg); }
+    .item { background: var(--surface); border-radius: 10px; padding: 9px 10px; }
+    .row { display: flex; align-items: center; gap: 8px; }
+    .badge {
+      flex: none; font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 5px;
+      background: var(--accent-soft); color: var(--accent-text);
+    }
+    .name { flex: 1; min-width: 0; font-weight: 600; }
+    .btn {
+      flex: none; border: 0; background: transparent; color: var(--muted);
+      width: 24px; height: 24px; border-radius: 6px; cursor: pointer; font-size: 13px; line-height: 1;
+    }
+    .btn:hover { background: var(--surface-2); color: var(--text); }
+    .bar { height: 4px; border-radius: 4px; background: var(--surface-2); margin: 7px 0 5px; overflow: hidden; }
+    .fill { height: 100%; background: var(--accent); border-radius: 4px; transition: width 0.2s; }
+    .item.done .fill { background: var(--green); }
+    .item.error .fill { background: var(--danger); }
+    .item.indeterminate .fill { width: 35% !important; animation: slide 1.2s ease-in-out infinite; }
+    @keyframes slide { from { transform: translateX(-100%); } to { transform: translateX(300%); } }
+    .status { font-size: 12px; color: var(--muted); display: flex; gap: 8px; }
+    .status .right { margin-left: auto; }
+    .item.error .status { color: var(--danger); white-space: normal; }
+    .item.done { cursor: pointer; }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <script src="progress.js"></script>
+</body>
+</html>

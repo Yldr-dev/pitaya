@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'">
+  <title>Pitaya</title>
+  <link rel="stylesheet" href="base.css">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div id="app">
+    <header>
+      <img src="../../assets/logo-128.png" alt="" class="logo">
+      <span class="brand">Pitaya</span>
+      <span id="host" class="pill"></span>
+    </header>
+
+    <section id="choose">
+      <div class="meta">
+        <div class="thumb">
+          <img id="thumb" alt="" hidden>
+          <div id="thumbSpin" class="spinner"></div>
+        </div>
+        <div class="meta-text">
+          <div id="title" class="title"></div>
+          <div id="subtitle" class="subtitle muted"></div>
+          <div id="link" class="link ellipsis muted"></div>
+        </div>
+      </div>
+      <nav id="steps">
+        <span data-step="format">Biçim</span>
+        <span data-step="quality">Kalite</span>
+        <span data-step="folder">Klasör</span>
+      </nav>
+      <div id="options" role="listbox"></div>
+      <div id="note" class="note muted"></div>
+    </section>
+
+    <section id="message" hidden>
+      <div id="msgIcon" class="msg-icon"></div>
+      <div>
+        <div id="msgText" class="msg-text"></div>
+        <div id="msgSub" class="muted"></div>
+      </div>
+    </section>
+
+    <footer class="muted">
+      <span><kbd>1</kbd>–<kbd>9</kbd> seç</span>
+      <span><kbd>↑</kbd><kbd>↓</kbd> <kbd>Enter</kbd></span>
+      <span><kbd>⌫</kbd> geri</span>
+      <span><kbd>Esc</kbd> iptal</span>
+    </footer>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>

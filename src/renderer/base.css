@@ -1,0 +1,56 @@
+:root {
+  --bg: #ffffff;
+  --surface: #f6f3f7;
+  --surface-2: #eeeaf0;
+  --border: #e6e0e9;
+  --text: #221d26;
+  --muted: #7b7282;
+  --accent: #e5306f;
+  --accent-soft: #fde7ef;
+  --accent-text: #c01a55;
+  --green: #5b9e2c;
+  --danger: #d93b3b;
+  --focus: #e5306f;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #17151a;
+    --surface: #211e25;
+    --surface-2: #2a2630;
+    --border: #312c37;
+    --text: #efeaf1;
+    --muted: #9a91a1;
+    --accent: #ff4f8d;
+    --accent-soft: #3a1d2a;
+    --accent-text: #ff7aa8;
+    --green: #8bc34a;
+    --danger: #ff6b6b;
+    color-scheme: dark;
+  }
+}
+
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 13px/1.4 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  cursor: default;
+}
+button { font: inherit; color: inherit; }
+input { font: inherit; color: inherit; }
+.muted { color: var(--muted); }
+.ellipsis { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+
+::-webkit-scrollbar { width: 10px; }
+::-webkit-scrollbar-thumb { background: var(--surface-2); border-radius: 10px; border: 3px solid var(--bg); }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinner {
+  width: 14px; height: 14px; border-radius: 50%;
+  border: 2px solid var(--surface-2); border-top-color: var(--accent);
+  animation: spin 0.8s linear infinite; flex: none;
+}

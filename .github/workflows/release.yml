@@ -1,0 +1,42 @@
+# Push a tag like v0.2.0 -> builds Pitaya and publishes it as a GitHub Release.
+# Installed copies of Pitaya pick the new release up automatically.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # Version comes from the tag; update source is this repository.
+      - name: Stamp version and update repo
+        shell: bash
+        run: |
+          node -e "
+            const fs = require('fs');
+            const p = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            p.version = process.env.GITHUB_REF_NAME.replace(/^v/, '');
+            p.pitaya = { ...p.pitaya, updateRepo: process.env.GITHUB_REPOSITORY };
+            fs.writeFileSync('package.json', JSON.stringify(p, null, 2));
+          "
+
+      - run: npm run dist
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/Pitaya-*-win-x64.zip
+          generate_release_notes: true

@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
+  <title>Pitaya</title>
+  <link rel="stylesheet" href="base.css">
+  <link rel="stylesheet" href="settings.css">
+</head>
+<body>
+  <div class="titlebar">
+    <img src="../../assets/logo-128.png" alt="">
+    <span>Pitaya</span>
+  </div>
+
+  <main>
+    <section class="hero">
+      <img src="../../assets/logo-128.png" alt="" class="hero-logo">
+      <div>
+        <h1>Pitaya arka planda çalışıyor</h1>
+        <p class="muted">Bir video linki kopyala, kısayola bas: biçimi, kaliteyi ve klasörü seç.</p>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Kısayol</h2>
+      <div class="row">
+        <div id="hotkey" class="keys"></div>
+        <button id="hotkeyBtn" class="btn">Değiştir</button>
+      </div>
+      <p id="hotkeyHint" class="hint muted"></p>
+    </section>
+
+    <section class="card">
+      <h2>Klasörler <span class="muted small">— popup'ta bu sırayla görünür</span></h2>
+      <div id="folders" class="folders"></div>
+      <button id="addFolder" class="btn ghost">+ Klasör ekle</button>
+    </section>
+
+    <section class="card">
+      <h2>Genel</h2>
+      <label class="toggle">
+        <span>
+          <span class="label">Windows açılınca başlat</span>
+          <span class="muted small">Tepside sessizce bekler</span>
+        </span>
+        <input type="checkbox" id="openAtLogin">
+      </label>
+      <label class="toggle">
+        <span>
+          <span class="label">Otomatik güncelle</span>
+          <span class="muted small">Yeni sürüm çıkınca kendini günceller</span>
+        </span>
+        <input type="checkbox" id="autoUpdate">
+      </label>
+      <label class="toggle">
+        <span>
+          <span class="label">Giriş isteyen siteler</span>
+          <span class="muted small">Sadece site giriş isterse (Instagram, yaş sınırlı videolar…) tarayıcındaki oturum kullanılır. En sorunsuz Firefox ile çalışır; Chrome/Edge açıkken okunamayabilir.</span>
+        </span>
+        <select id="cookiesBrowser">
+          <option value="">Kullanma</option>
+          <option value="firefox">Firefox</option>
+          <option value="chrome">Chrome</option>
+          <option value="edge">Edge</option>
+          <option value="brave">Brave</option>
+          <option value="opera">Opera</option>
+          <option value="vivaldi">Vivaldi</option>
+        </select>
+      </label>
+    </section>
+
+    <section class="card">
+      <h2>Bileşenler</h2>
+      <div id="compStatus" class="comp-status muted"></div>
+      <div class="versions">
+        <div><span class="muted">yt-dlp</span><span id="v-ytdlp">…</span></div>
+        <div><span class="muted">ffmpeg</span><span id="v-ffmpeg">…</span></div>
+        <div><span class="muted">Deno</span><span id="v-deno">…</span></div>
+      </div>
+      <div class="row gap">
+        <button id="updYtdlp" class="btn">yt-dlp'yi güncelle</button>
+        <button id="repair" class="btn ghost">Eksikleri indir</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Sürüm</h2>
+      <div class="row">
+        <div><span id="version"></span> <span id="updStatus" class="muted small"></span></div>
+        <button id="checkUpd" class="btn">Güncellemeleri denetle</button>
+      </div>
+    </section>
+
+    <footer>
+      <button id="openData" class="link">Veri klasörü</button>
+      <button id="openLog" class="link">Günlük dosyası</button>
+    </footer>
+  </main>
+  <script src="settings.js"></script>
+</body>
+</html>
