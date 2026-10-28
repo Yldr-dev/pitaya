@@ -30,6 +30,7 @@ function main() {
   const ytdlp = require('./ytdlp');
   const history = require('./history');
   const doubleCopy = require('./doublecopy');
+  const setupFilePanel = require('./filepanel');
 
   const ASSETS = path.join(__dirname, '..', '..', 'assets');
   const RENDERER = path.join(__dirname, '..', 'renderer');
@@ -64,6 +65,34 @@ function main() {
     win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     return win;
   }
+
+  // Show a panel in the middle of the screen the cursor is on and give it
+  // the keyboard.
+  function present(win, width, fromCopy) {
+    centerOnCursorDisplay(win, width, win.getBounds().height);
+    win.show();
+    // After a copy (not a hotkey) Windows won't hand us focus by itself.
+    if (fromCopy) doubleCopy.bringToFront(win);
+    win.focus();
+    win.webContents.focus();
+    setTimeout(() => {
+      if (win.isVisible() && !win.isFocused()) {
+        // Windows can refuse focus to background apps; nudge it once more.
+        win.setAlwaysOnTop(false);
+        win.setAlwaysOnTop(true, 'pop-up-menu');
+        doubleCopy.bringToFront(win);
+        win.focus();
+        log.info('panel focus retry', win.isFocused());
+      }
+    }, 120);
+  }
+
+  const filePanel = setupFilePanel({
+    makeWindow,
+    present,
+    belowToast: () => progressWin,
+    onUndoChange: () => refreshTray(),
+  });
 
   // ---------------- popup ----------------
 
@@ -213,18 +242,35 @@ function main() {
   async function onHotkey() {
     if (hotkeyBusy) return;
     if (popupWin.isVisible()) return hidePopup();
+    if (filePanel.isVisible()) return filePanel.hide();
     hotkeyBusy = true;
     try {
-      await showPopupForClipboard();
+      // Files on the clipboard (copied in Explorer): the file panel instead.
+      const clip = config.get().fileActions && filePanel.clipboardFiles();
+      if (clip) await filePanel.show({ clip });
+      else await showPopupForClipboard();
     } finally {
       hotkeyBusy = false;
     }
   }
 
   // Copying a link twice quickly works like the hotkey. Plain text copied twice
-  // is common, so anything that isn't just a link is ignored.
+  // is common, so anything that isn't just a link is ignored. Files copied
+  // or cut twice (Ctrl+C, Ctrl+C / Ctrl+X, Ctrl+X) open the file panel.
   async function onDoubleCopy() {
-    if (hotkeyBusy || popupWin.isVisible() || !components.isReady()) return;
+    if (hotkeyBusy || popupWin.isVisible() || filePanel.isVisible()) return;
+    const cfg = config.get();
+    const clip = cfg.fileActions && filePanel.clipboardFiles();
+    if (clip) {
+      hotkeyBusy = true;
+      try {
+        await filePanel.show({ clip, fromCopy: true });
+      } finally {
+        hotkeyBusy = false;
+      }
+      return;
+    }
+    if (!cfg.doubleCopy || !components.isReady()) return;
     const text = (await readClipboard()).trim();
     if (!/^https?:\/\/\S+$/i.test(text) || !extractUrl(text)) return;
     log.info('double copy');
@@ -237,7 +283,8 @@ function main() {
   }
 
   function applyDoubleCopy() {
-    if (config.get().doubleCopy) doubleCopy.start(() => onDoubleCopy().catch((e) => log.warn('double copy', e.message)));
+    const cfg = config.get();
+    if (cfg.doubleCopy || cfg.fileActions) doubleCopy.start(() => onDoubleCopy().catch((e) => log.warn('double copy', e.message)));
     else doubleCopy.stop();
   }
 
@@ -270,22 +317,7 @@ function main() {
     }
     log.info(fromCopy ? 'double copy' : 'hotkey', payload.mode, url ? new URL(url).hostname : '-');
     send(popupWin, 'popup:show', payload);
-    centerOnCursorDisplay(popupWin, 420, popupWin.getBounds().height);
-    popupWin.show();
-    // After a copy (not a hotkey) Windows won't hand us focus by itself.
-    if (fromCopy) doubleCopy.bringToFront(popupWin);
-    popupWin.focus();
-    popupWin.webContents.focus();
-    setTimeout(() => {
-      if (popupWin.isVisible() && !popupWin.isFocused()) {
-        // Windows can refuse focus to background apps; nudge it once more.
-        popupWin.setAlwaysOnTop(false);
-        popupWin.setAlwaysOnTop(true, 'pop-up-menu');
-        doubleCopy.bringToFront(popupWin);
-        popupWin.focus();
-        log.info('popup focus retry', popupWin.isFocused());
-      }
-    }, 120);
+    present(popupWin, 420, fromCopy);
   }
 
   ipcMain.on('popup:resize', (_e, h) => {
@@ -726,12 +758,19 @@ function main() {
     if (typeof patch.autoUpdate === 'boolean') allowed.autoUpdate = patch.autoUpdate;
     if (typeof patch.doubleCopy === 'boolean') allowed.doubleCopy = patch.doubleCopy;
     if (typeof patch.notify === 'boolean') allowed.notify = patch.notify;
+    if (typeof patch.fileActions === 'boolean') allowed.fileActions = patch.fileActions;
+    if (Array.isArray(patch.fileFavorites)) {
+      allowed.fileFavorites = patch.fileFavorites
+        .filter((f) => f && typeof f.path === 'string' && f.path)
+        .map((f) => ({ name: String(f.name || path.basename(f.path) || f.path).slice(0, 60), path: f.path }));
+    }
+    if (Array.isArray(patch.fileRecent) && patch.fileRecent.length === 0) allowed.fileRecent = [];
     if (['', 'firefox', 'chrome', 'edge', 'brave', 'opera', 'vivaldi'].includes(patch.cookiesBrowser)) {
       allowed.cookiesBrowser = patch.cookiesBrowser;
     }
     const cfg = config.update(allowed);
     applyLoginItem();
-    if ('doubleCopy' in allowed) {
+    if ('doubleCopy' in allowed || 'fileActions' in allowed) {
       applyDoubleCopy();
       sendProgressMeta();
     }
@@ -779,6 +818,7 @@ function main() {
         { label: `Panodaki linki indir${hk ? `\t${hk}` : ''}`, click: () => onHotkey() },
         { label: 'İndirmeleri göster', click: () => openPanel() },
         { label: 'İndirme geçmişi', click: () => openHistory() },
+        { label: 'Son dosya işlemini geri al', enabled: filePanel.canUndo(), click: () => filePanel.undoLast() },
         { type: 'separator' },
         { label: 'Ayarlar', click: openSettings },
         { type: 'separator' },
@@ -830,7 +870,7 @@ function main() {
     if (!manual && !config.get().autoUpdate) return updater.getState();
     const rel = await updater.check();
     if (rel && (await updater.prepare(rel))) {
-      if (ytdlp.activeCount() === 0 && !popupWin.isVisible()) updater.apply();
+      if (ytdlp.activeCount() === 0 && !popupWin.isVisible() && !filePanel.isBusy()) updater.apply();
     }
     return updater.getState();
   }
@@ -841,7 +881,7 @@ function main() {
     if (updater.hasPrepared() && ytdlp.activeCount() === 0 && !applyTimer) {
       applyTimer = setTimeout(() => {
         applyTimer = null;
-        if (ytdlp.activeCount() === 0 && !popupWin.isVisible()) updater.apply();
+        if (ytdlp.activeCount() === 0 && !popupWin.isVisible() && !filePanel.isBusy()) updater.apply();
       }, 8000);
     }
   });
@@ -864,6 +904,7 @@ function main() {
     createTray();
     createPopup();
     createProgress();
+    filePanel.create();
     applyLoginItem();
     registerAppName();
 

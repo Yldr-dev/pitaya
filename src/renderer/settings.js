@@ -97,15 +97,28 @@ $('hotkeyBtn').addEventListener('click', () => (recording ? stopRecording() : st
 
 // ---------- folders ----------
 
-async function saveFolders() {
-  cfg = await api.invoke('settings:save', { folders: cfg.folders });
-}
+// Two editable folder lists share this: download folders ('folders') and the
+// file panel's fixed targets ('fileFavorites').
+const FOLDER_LISTS = {
+  folders: { box: 'folders', empty: 'Henüz klasör yok. En az bir tane ekle.' },
+  fileFavorites: { box: 'fileFavorites', empty: 'Sabit klasör yok. Panelde sadece son kullanılanlar görünür.' },
+};
 
 function renderFolders() {
-  const box = $('folders');
+  renderFolderList('folders');
+  renderFolderList('fileFavorites');
+}
+
+function renderFolderList(key) {
+  const list = cfg[key];
+  const saveFolders = async () => {
+    cfg = await api.invoke('settings:save', { [key]: list });
+  };
+  const rerender = () => renderFolderList(key);
+  const box = $(FOLDER_LISTS[key].box);
   box.replaceChildren();
-  if (!cfg.folders.length) box.append(el('div', 'empty', 'Henüz klasör yok. En az bir tane ekle.'));
-  cfg.folders.forEach((f, i) => {
+  if (!list.length) box.append(el('div', 'empty', FOLDER_LISTS[key].empty));
+  list.forEach((f, i) => {
     const row = el('div', 'folder');
     row.append(el('span', 'num', i < 9 ? String(i + 1) : ''));
     const info = el('div', 'info');
@@ -126,39 +139,52 @@ function renderFolders() {
     up.title = 'Yukarı taşı';
     up.disabled = i === 0;
     up.onclick = () => {
-      [cfg.folders[i - 1], cfg.folders[i]] = [cfg.folders[i], cfg.folders[i - 1]];
-      saveFolders().then(renderFolders);
+      [list[i - 1], list[i]] = [list[i], list[i - 1]];
+      saveFolders().then(rerender);
     };
     const down = el('button', 'icon-btn', '↓');
     down.title = 'Aşağı taşı';
-    down.disabled = i === cfg.folders.length - 1;
+    down.disabled = i === list.length - 1;
     down.onclick = () => {
-      [cfg.folders[i + 1], cfg.folders[i]] = [cfg.folders[i], cfg.folders[i + 1]];
-      saveFolders().then(renderFolders);
+      [list[i + 1], list[i]] = [list[i], list[i + 1]];
+      saveFolders().then(rerender);
     };
     const del = el('button', 'icon-btn', '✕');
     del.title = 'Kaldır';
     del.onclick = () => {
-      cfg.folders.splice(i, 1);
-      saveFolders().then(renderFolders);
+      list.splice(i, 1);
+      saveFolders().then(rerender);
     };
     row.append(up, down, del);
     box.append(row);
   });
 }
 
-$('addFolder').addEventListener('click', async () => {
+async function addFolderTo(key) {
   const dir = await api.invoke('settings:pickFolder');
-  if (!dir || cfg.folders.some((f) => f.path === dir)) return;
+  if (!dir || cfg[key].some((f) => f.path === dir)) return;
   const name = dir.split(/[\\/]/).filter(Boolean).pop() || dir;
-  cfg.folders.push({ name, path: dir });
-  await saveFolders();
-  renderFolders();
+  cfg[key].push({ name, path: dir });
+  cfg = await api.invoke('settings:save', { [key]: cfg[key] });
+  renderFolderList(key);
+}
+
+$('addFolder').addEventListener('click', () => addFolderTo('folders'));
+$('addFavorite').addEventListener('click', () => addFolderTo('fileFavorites'));
+
+function showRecentCount() {
+  const n = cfg.fileRecent.length;
+  $('recentCount').textContent = n ? `${n} son kullanılan hedef hatırlanıyor` : 'Henüz son kullanılan hedef yok';
+  $('clearRecent').disabled = !n;
+}
+$('clearRecent').addEventListener('click', async () => {
+  cfg = await api.invoke('settings:save', { fileRecent: [] });
+  showRecentCount();
 });
 
 // ---------- toggles ----------
 
-for (const id of ['openAtLogin', 'autoUpdate', 'doubleCopy', 'notify']) {
+for (const id of ['openAtLogin', 'autoUpdate', 'doubleCopy', 'notify', 'fileActions']) {
   $(id).addEventListener('change', async (e) => {
     cfg = await api.invoke('settings:save', { [id]: e.target.checked });
   });
@@ -249,6 +275,9 @@ api.on('settings:update', renderUpdate);
   $('openAtLogin').checked = !!cfg.openAtLogin;
   $('autoUpdate').checked = !!cfg.autoUpdate;
   $('notify').checked = !!cfg.notify;
+  $('fileActions').checked = !!cfg.fileActions && s.doubleCopyAvailable;
+  if (!s.doubleCopyAvailable) $('fileActions').disabled = true;
+  showRecentCount();
   $('doubleCopy').checked = !!cfg.doubleCopy && s.doubleCopyAvailable;
   if (!s.doubleCopyAvailable) {
     $('doubleCopy').disabled = true;

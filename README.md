@@ -20,6 +20,21 @@ Panel, inen bir şey kalmayınca 10 saniye sonra kapanır (fare üstündeyse bek
 - Oynatma listelerinde ilerleme panelinde kaçıncı videoda olduğun görünür (ör. 3/25).
 - Çift Ctrl+C ve bildirimler Ayarlar'dan kapatılabilir.
 
+### Dosya paneli
+
+Explorer'da dosya ya da klasör seç (bir veya birden fazla) ve **Ctrl + C**'ye art arda iki kez bas.
+Kesmek için **Ctrl + X**'e iki kez basarsan panel "Taşı" modunda açılır; daha önce hiçbir yere taşımadıysan
+klasör seçme penceresi doğrudan açılır.
+
+- **Hedefler:** son kullanılan 5 klasör, Ayarlar'daki sabit klasörler (varsayılan Masaüstü, Belgeler, İndirilenler) ve takılı USB bellekler.
+  **1–9** tuşları hedefi seçer, **Enter** en üsttekine gönderir, **S** klasör seçme penceresini açar, **Tab** kopyala/taşı arasında geçer.
+- **Bulundukları yerde:** **Y** yeni klasöre topla · **A** türe göre ayır (Fotoğraflar, Videolar, Belgeler…) · **Z** ZIP yap ·
+  **R** toplu yeniden adlandır (`tatil_01.jpg`, `tatil_02.jpg`…) · **P** dosya yollarını kopyala.
+- Hiçbir şeyin üzerine yazılmaz: aynı adda dosya varsa `ad (2).uzantı` olarak kaydedilir.
+- İşlem sağ altta görünür; **Geri al** ile son işlem geri alınır (tepsi menüsünden de). Kopyalar ve ZIP dosyaları
+  geri alınırken kalıcı olarak silinmez, Geri Dönüşüm Kutusu'na gider.
+- Ayarlar → Dosya paneli'nden kapatılabilir.
+
 ## Kurulum
 
 Kurulum yok. [Releases](../../releases/latest) sayfasından `Pitaya-x.y.z-win-x64.zip` dosyasını indir, istediğin klasöre çıkar, `Pitaya.exe`'yi çalıştır.

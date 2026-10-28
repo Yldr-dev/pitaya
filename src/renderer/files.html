@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
+  <title>Pitaya — Dosyalar</title>
+  <link rel="stylesheet" href="base.css">
+  <link rel="stylesheet" href="popup.css">
+  <link rel="stylesheet" href="files.css">
+</head>
+<body>
+  <div id="app">
+    <header>
+      <img src="../../assets/logo-128.png" alt="" class="logo">
+      <span class="brand">Pitaya</span>
+      <div id="mode" class="seg" title="Tab ile değiştir">
+        <button data-mode="copy">Kopyala</button>
+        <button data-mode="move">Taşı</button>
+      </div>
+    </header>
+
+    <div class="meta files-meta">
+      <div id="kindIcon" class="kind"></div>
+      <div class="meta-text">
+        <div id="sumTitle" class="title"></div>
+        <div id="sumNames" class="subtitle muted"></div>
+      </div>
+    </div>
+
+    <section id="main">
+      <div id="targetsLabel" class="section-label"></div>
+      <div id="targets" class="list"></div>
+      <div class="section-label">Bulundukları yerde</div>
+      <div id="actions" class="actions"></div>
+    </section>
+
+    <section id="form" hidden>
+      <div id="formTitle" class="section-label"></div>
+      <div class="form-row">
+        <input id="formName" spellcheck="false" autocomplete="off">
+        <label id="startWrap" class="start" hidden>
+          <span class="muted">Başlangıç</span>
+          <input id="formStart" type="number" min="0" max="99999" value="1">
+        </label>
+      </div>
+      <div id="formPreview" class="preview muted"></div>
+      <div class="form-buttons">
+        <button id="formBack" class="btn">Geri <kbd>Esc</kbd></button>
+        <button id="formOk" class="btn primary">Tamam <kbd>Enter</kbd></button>
+      </div>
+    </section>
+
+    <section id="message" hidden>
+      <div class="msg-icon">📄</div>
+      <div>
+        <div id="msgText" class="msg-text"></div>
+        <div id="msgSub" class="muted"></div>
+      </div>
+    </section>
+
+    <footer class="muted">
+      <span><kbd>1</kbd>–<kbd>9</kbd> hedef</span>
+      <span><kbd>Tab</kbd> kopyala/taşı</span>
+      <span><kbd>↑</kbd><kbd>↓</kbd> <kbd>Enter</kbd></span>
+      <span><kbd>Esc</kbd> kapat</span>
+    </footer>
+  </div>
+  <script src="files.js"></script>
+</body>
+</html>

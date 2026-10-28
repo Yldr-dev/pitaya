@@ -1,0 +1,53 @@
+/* File panel: builds on popup.css. */
+
+.seg { margin-left: auto; display: flex; padding: 2px; border-radius: 999px; background: var(--surface); }
+.seg button {
+  border: 0; background: transparent; padding: 3px 12px; border-radius: 999px;
+  font-size: 12px; color: var(--muted); cursor: pointer;
+}
+.seg button.on { background: var(--accent); color: #fff; font-weight: 600; }
+
+.files-meta { align-items: center; }
+.kind {
+  flex: none; width: 40px; height: 40px; border-radius: 10px;
+  display: grid; place-items: center; font-size: 20px; background: var(--surface-2);
+}
+.files-meta .subtitle { white-space: nowrap; }
+
+.section-label { font-size: 12px; color: var(--muted); margin: 2px 2px 6px; }
+.list { display: flex; flex-direction: column; gap: 2px; margin-bottom: 10px; }
+.list .opt { padding: 7px 10px; }
+.opt .tag {
+  flex: none; font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 5px;
+  background: var(--surface-2); color: var(--muted);
+}
+.opt .tag.usb { background: var(--accent-soft); color: var(--accent-text); }
+.opt.pick .main { font-weight: 600; color: var(--accent-text); }
+
+.actions { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+.actions .opt { padding: 7px 8px; gap: 8px; }
+.actions .opt .main { font-weight: 500; }
+.actions .opt .key { width: 20px; height: 20px; font-size: 11px; }
+
+#form[hidden], #main[hidden] { display: none; }
+.form-row { display: flex; gap: 8px; }
+#form input {
+  flex: 1; min-width: 0; padding: 8px 10px; border-radius: 9px; outline: none;
+  border: 1px solid var(--border); background: var(--surface); user-select: text;
+}
+#form input:focus { border-color: var(--accent); }
+.start { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+.start[hidden] { display: none; }
+#form .start input { flex: none; width: 70px; }
+.preview { font-size: 12px; margin: 8px 2px 0; min-height: 16px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.preview.error { color: var(--danger); }
+.form-buttons { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+.btn {
+  border: 1px solid var(--border); background: var(--bg); border-radius: 8px;
+  padding: 6px 12px; cursor: pointer; white-space: nowrap;
+}
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn kbd { border-color: rgba(127, 127, 127, 0.35); background: transparent; color: inherit; opacity: 0.8; }
+body.form footer { display: none; }
+.files-meta[hidden], .seg[hidden] { display: none; }

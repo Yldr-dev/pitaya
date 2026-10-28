@@ -45,6 +45,24 @@
     </section>
 
     <section class="card">
+      <h2>Dosya paneli</h2>
+      <label class="toggle">
+        <span>
+          <span class="label">Dosya kopyalayınca paneli aç</span>
+          <span class="muted small">Explorer'da dosyaları iki kez kopyala (Ctrl+C, Ctrl+C) ya da iki kez kes (Ctrl+X, Ctrl+X): nereye gideceğini seç, ZIP yap, yeni klasöre topla…</span>
+        </span>
+        <input type="checkbox" id="fileActions">
+      </label>
+      <h2 class="sub-h">Sabit klasörler <span class="muted small">— son kullanılanların altında görünür</span></h2>
+      <div id="fileFavorites" class="folders"></div>
+      <button id="addFavorite" class="btn ghost">+ Klasör ekle</button>
+      <div class="row sep-top">
+        <span id="recentCount" class="muted small"></span>
+        <button id="clearRecent" class="btn">Son hedefleri temizle</button>
+      </div>
+    </section>
+
+    <section class="card">
       <h2>İndirme geçmişi</h2>
       <div class="row">
         <span id="historyCount" class="muted"></span>

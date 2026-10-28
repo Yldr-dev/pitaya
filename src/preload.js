@@ -7,18 +7,22 @@ const SEND = [
   'progress:cancel', 'progress:dismiss', 'progress:open', 'progress:play', 'progress:retry',
   'settings:suspendHotkey', 'settings:openData', 'settings:openLog', 'settings:openHistory', 'settings:repairComponents',
   'history:open', 'history:reveal', 'history:remove', 'history:redownload',
+  'files:resize', 'files:cancel', 'files:run',
+  'toast:resize', 'toast:close', 'toast:open', 'toast:undo',
 ];
 const INVOKE = [
   'popup:pickFolder', 'progress:state',
   'settings:get', 'settings:versions', 'settings:pickFolder', 'settings:save', 'settings:setHotkey',
   'settings:checkUpdate', 'settings:updateYtdlp',
   'history:list', 'history:clear',
+  'files:pickFolder',
 ];
 const ON = [
   'popup:show', 'popup:info',
   'progress:jobs', 'progress:components', 'progress:update', 'progress:meta',
   'settings:components', 'settings:update', 'settings:historyCount',
   'history:changed',
+  'files:show', 'toast:show',
 ];
 
 contextBridge.exposeInMainWorld('pitaya', {

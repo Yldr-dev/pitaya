@@ -93,3 +93,5 @@ select:focus { border-color: var(--accent); }
 footer { display: flex; gap: 16px; justify-content: center; padding: 4px 0 8px; }
 .link { border: 0; background: none; color: var(--muted); cursor: pointer; font-size: 12px; text-decoration: underline; text-underline-offset: 3px; }
 .link:hover { color: var(--accent-text); }
+.sub-h { margin: 12px 0 8px; padding-top: 10px; border-top: 1px solid var(--border); }
+.sep-top { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); }
